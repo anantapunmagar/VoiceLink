@@ -1,28 +1,22 @@
 import { useEffect, useState } from "react";
-import type { User } from "./lib/types";
-import { getCurrentUser, logout } from "./lib/auth";
+import { useAppStore } from "./lib/store";
 import { AuthScreen } from "./components/AuthScreen";
 import { MainApp } from "./components/MainApp";
 import { Link2 } from "lucide-react";
+import { Toaster } from "sonner";
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const { currentUser, setCurrentUser } = useAppStore();
   const [booting, setBooting] = useState(true);
 
   useEffect(() => {
-    setUser(getCurrentUser());
+    // Bootstrap from store (already persisted)
     setBooting(false);
   }, []);
 
-  useEffect(() => {
-    function onStorage(e: StorageEvent) {
-      if (e.key === "vl_users" || e.key === "vl_current_user") setUser(getCurrentUser());
-    }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  function handleLogout() { logout(); setUser(null); }
+  function handleLogout() {
+    setCurrentUser(null);
+  }
 
   if (booting) {
     return (
@@ -42,7 +36,12 @@ export default function App() {
     );
   }
 
-  if (!user) return <AuthScreen onAuth={setUser} />;
+  if (!currentUser) return <AuthScreen onAuth={setCurrentUser} />;
 
-  return <MainApp user={user} onLogout={handleLogout} onUserUpdate={setUser} />;
+  return (
+    <>
+      <MainApp user={currentUser} onLogout={handleLogout} onUserUpdate={setCurrentUser} />
+      <Toaster position="top-center" richColors closeButton />
+    </>
+  );
 }

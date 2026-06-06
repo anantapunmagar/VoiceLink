@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "../../utils/cn";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ModalProps {
   open: boolean;
@@ -19,28 +20,34 @@ export function Modal({ open, onClose, children, size = "md", className, closeOn
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
-
   const maxW = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-lg", xl: "max-w-2xl", full: "max-w-4xl" };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
-      onClick={closeOnBackdrop ? onClose : undefined}
-    >
-      <div
-        className={cn(
-          "relative w-full rounded-xl border border-[color:var(--color-border)] overflow-hidden animate-scale-in shadow-2xl",
-          "bg-[color:var(--color-bg-3)]",
-          maxW[size],
-          className,
-        )}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {children}
-      </div>
-    </div>
+    <AnimatePresence>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
+          onClick={closeOnBackdrop ? onClose : undefined}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className={cn(
+              "relative w-full rounded-xl border border-[color:var(--color-border)] overflow-hidden shadow-2xl",
+              "bg-[color:var(--color-bg-3)]",
+              maxW[size],
+              className,
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {children}
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }
 
