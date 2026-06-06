@@ -1,9 +1,21 @@
-import { useState, useEffect, useRef } from "react";
-import { Hash, Send, Smile } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  Hash,
+  Send,
+  Smile,
+  Reply,
+  Pencil,
+  Trash2,
+  Pin,
+  MoreHorizontal,
+  X,
+  CheckCheck,
+} from "lucide-react";
 import type { Channel, Server, User, Message } from "../lib/types";
 import { chatBus } from "../lib/chat";
 import { Avatar } from "./ui/Avatar";
 import { storage } from "../lib/storage";
+import { cn } from "../utils/cn";
 
 interface ChatPanelProps {
   channel: Channel;
@@ -11,11 +23,20 @@ interface ChatPanelProps {
   currentUser: User;
 }
 
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥", "✨"];
+
 export function ChatPanel({ channel, server, currentUser }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingRef = useRef(false);
 
   // Load messages
   useEffect(() => {
@@ -33,130 +54,519 @@ export function ChatPanel({ channel, server, currentUser }: ChatPanelProps) {
     return unsub;
   }, [channel.id]);
 
+  // Listen for edits
+  useEffect(() => {
+    const unsub = chatBus.onEdit((msg) => {
+      if (msg.channelId === channel.id) {
+        setMessages((prev) => prev.map((m) => (m.id === msg.id ? msg : m)));
+      }
+    });
+    return unsub;
+  }, [channel.id]);
+
+  // Listen for deletes
+  useEffect(() => {
+    const unsub = chatBus.onDelete((msgId) => {
+      setMessages((prev) => prev.filter((m) => m.id !== msgId));
+    });
+    return unsub;
+  }, []);
+
+  // Listen for reactions
+  useEffect(() => {
+    const unsub = chatBus.onReaction(({ msgId, emoji, userId, add }) => {
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== msgId) return m;
+          const reactions = { ...(m.reactions ?? {}) };
+          const users = reactions[emoji] ?? [];
+          if (add) {
+            reactions[emoji] = [...new Set([...users, userId])];
+          } else {
+            reactions[emoji] = users.filter((u) => u !== userId);
+            if (reactions[emoji].length === 0) delete reactions[emoji];
+          }
+          return { ...m, reactions };
+        }),
+      );
+    });
+    return unsub;
+  }, []);
+
+  // Listen for typing
+  useEffect(() => {
+    const unsub = chatBus.onTyping(({ userId, channelId, typing }) => {
+      if (channelId !== channel.id || userId === currentUser.id) return;
+      const users = storage.getUsers();
+      const u = users.find((x) => x.id === userId);
+      const name = u?.username ?? "Someone";
+      setTypingUsers((prev) =>
+        typing ? [...new Set([...prev, name])] : prev.filter((n) => n !== name),
+      );
+    });
+    return unsub;
+  }, [channel.id, currentUser.id]);
+
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const handleTyping = useCallback(() => {
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      chatBus.sendTyping(currentUser.id, channel.id, true);
+    }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      chatBus.sendTyping(currentUser.id, channel.id, false);
+    }, 2000);
+  }, [currentUser.id, channel.id]);
+
   function handleSend() {
     const content = input.trim();
     if (!content) return;
-    chatBus.sendMessage(content, currentUser.id, channel.id, server.id);
+    chatBus.sendMessage(content, currentUser.id, channel.id, server.id, replyTo?.id);
     setInput("");
+    setReplyTo(null);
+    isTypingRef.current = false;
+    chatBus.sendTyping(currentUser.id, channel.id, false);
     inputRef.current?.focus();
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
+    if (e.key === "Escape") {
+      setReplyTo(null);
+      setEditingId(null);
+    }
   }
 
+  function handleEditSave() {
+    if (!editingId) return;
+    const trimmed = editContent.trim();
+    if (!trimmed) return;
+    chatBus.editMessage(editingId, trimmed, currentUser.id);
+    setEditingId(null);
+    setEditContent("");
+  }
+
+  function handleDelete(msg: Message) {
+    if (!confirm("Delete this message?")) return;
+    chatBus.deleteMessage(msg.id, currentUser.id);
+  }
+
+  function handleReaction(msgId: string, emoji: string) {
+    chatBus.toggleReaction(msgId, emoji, currentUser.id);
+  }
+
+  const allUsers = storage.getUsers();
+
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex flex-col flex-1 overflow-hidden">
       {/* Header */}
-      <div className="h-12 px-4 flex items-center border-b border-[color:var(--color-border)] shadow-sm bg-[color:var(--color-bg-2)]">
-        <Hash className="h-5 w-5 text-[color:var(--color-text-mute)] mr-2" />
-        <h2 className="font-semibold text-[15px]">{channel.name}</h2>
+      <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[color:var(--color-border)] flex-shrink-0">
+        <Hash size={20} className="text-[color:var(--color-text-mute)]" />
+        <div>
+          <h2 className="font-semibold text-sm text-[color:var(--color-text)]">{channel.name}</h2>
+          {channel.topic && (
+            <p className="text-xs text-[color:var(--color-text-mute)] truncate max-w-xs">{channel.topic}</p>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-1">
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-0.5">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="h-16 w-16 rounded-full bg-[color:var(--color-bg-3)] flex items-center justify-center mb-4">
-              <Hash className="h-8 w-8 text-[color:var(--color-text-mute)]" />
+          <div className="flex flex-col items-center justify-center flex-1 text-center py-16">
+            <div
+              className="h-16 w-16 rounded-full flex items-center justify-center mb-4"
+              style={{ background: "var(--color-bg-3)" }}
+            >
+              <Hash size={28} className="text-[color:var(--color-text-mute)]" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Welcome to #{channel.name}</h3>
-            <p className="text-sm text-[color:var(--color-text-dim)] max-w-md">
-              This is the start of the #{channel.name} channel. Send a message to get the conversation going.
+            <h3 className="text-lg font-semibold text-[color:var(--color-text)] mb-1">
+              Welcome to #{channel.name}
+            </h3>
+            <p className="text-sm text-[color:var(--color-text-dim)] max-w-sm">
+              {channel.topic || `This is the start of the #${channel.name} channel. Send a message to get the conversation going.`}
             </p>
           </div>
         )}
 
         {messages.map((msg, idx) => {
-          const author = storage.getUsers().find((u) => u.id === msg.authorId);
+          const author = allUsers.find((u) => u.id === msg.authorId);
           const prevMsg = messages[idx - 1];
           const isGrouped =
             prevMsg &&
             prevMsg.authorId === msg.authorId &&
-            msg.timestamp - prevMsg.timestamp < 5 * 60 * 1000; // 5 minutes
+            msg.timestamp - prevMsg.timestamp < 5 * 60 * 1000;
+          const replyMsg = msg.replyTo ? messages.find((m) => m.id === msg.replyTo) : null;
+          const replyAuthor = replyMsg ? allUsers.find((u) => u.id === replyMsg.authorId) : null;
 
           return (
             <MessageBubble
               key={msg.id}
               message={msg}
               author={author}
-              grouped={isGrouped}
+              grouped={!!isGrouped}
+              replyMsg={replyMsg}
+              replyAuthor={replyAuthor}
+              isOwn={msg.authorId === currentUser.id}
+              currentUserId={currentUser.id}
+              isHovered={hoveredMsgId === msg.id}
+              onHover={(id) => setHoveredMsgId(id)}
+              onReply={() => {
+                setReplyTo(msg);
+                inputRef.current?.focus();
+              }}
+              onEdit={() => {
+                setEditingId(msg.id);
+                setEditContent(msg.content);
+              }}
+              onDelete={() => handleDelete(msg)}
+              onReaction={(emoji) => handleReaction(msg.id, emoji)}
+              isEditing={editingId === msg.id}
+              editContent={editContent}
+              onEditChange={setEditContent}
+              onEditSave={handleEditSave}
+              onEditCancel={() => { setEditingId(null); setEditContent(""); }}
             />
           );
         })}
+
+        {/* Typing indicator */}
+        {typingUsers.length > 0 && (
+          <div className="flex items-center gap-2 px-2 py-1 text-xs text-[color:var(--color-text-mute)]">
+            <div className="flex gap-0.5">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className="h-1.5 w-1.5 rounded-full bg-[color:var(--color-text-mute)] wave-bar"
+                  style={{ animationDelay: `${i * 0.15}s` }}
+                />
+              ))}
+            </div>
+            <span>
+              {typingUsers.length === 1
+                ? `${typingUsers[0]} is typing…`
+                : typingUsers.length === 2
+                ? `${typingUsers[0]} and ${typingUsers[1]} are typing…`
+                : "Several people are typing…"}
+            </span>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="px-4 pb-6">
-        <div className="relative flex items-center gap-2 bg-[color:var(--color-bg-3)] rounded-lg px-4 py-2.5 border border-[color:var(--color-border)] focus-within:border-[color:var(--color-accent)] transition-colors">
-          <button className="p-1 text-[color:var(--color-text-mute)] hover:text-[color:var(--color-text)] transition-colors">
-            <Smile className="h-5 w-5" />
-          </button>
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={`Message #${channel.name}`}
-            className="flex-1 bg-transparent text-sm text-[color:var(--color-text)] placeholder:text-[color:var(--color-text-mute)] focus:outline-none"
-          />
+      {/* Reply bar */}
+      {replyTo && (
+        <div className="mx-4 mb-1 px-3 py-2 rounded-t-lg bg-[color:var(--color-bg-3)] flex items-center gap-2 border-l-2 border-[color:var(--color-accent)]">
+          <Reply size={14} className="text-[color:var(--color-accent)] flex-shrink-0" />
+          <span className="text-xs text-[color:var(--color-text-dim)] truncate flex-1">
+            Replying to <strong>{allUsers.find((u) => u.id === replyTo.authorId)?.username ?? "Unknown"}</strong>:{" "}
+            {replyTo.content.slice(0, 60)}
+            {replyTo.content.length > 60 ? "…" : ""}
+          </span>
           <button
-            onClick={handleSend}
-            disabled={!input.trim()}
-            className="p-1.5 rounded-md text-[color:var(--color-text-mute)] hover:text-[color:var(--color-accent)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            onClick={() => setReplyTo(null)}
+            className="text-[color:var(--color-text-mute)] hover:text-[color:var(--color-text)] transition-colors"
           >
-            <Send className="h-4 w-4" />
+            <X size={14} />
           </button>
         </div>
+      )}
+
+      {/* Input */}
+      <div className="px-4 pb-4 flex-shrink-0">
+        <div
+          className={cn(
+            "flex items-end gap-2 px-4 py-3 rounded-xl border transition-colors",
+            "bg-[color:var(--color-bg-3)] border-[color:var(--color-border)]",
+            "focus-within:border-[color:var(--color-accent)]",
+          )}
+        >
+          <textarea
+            ref={inputRef}
+            rows={1}
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              handleTyping();
+              // Auto-resize
+              e.target.style.height = "auto";
+              e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={`Message #${channel.name}`}
+            className="flex-1 bg-transparent text-sm text-[color:var(--color-text)] placeholder:text-[color:var(--color-text-mute)] focus:outline-none resize-none overflow-y-auto"
+            style={{ maxHeight: 120 }}
+          />
+          <div className="flex items-center gap-1 flex-shrink-0 pb-0.5">
+            <EmojiPicker onSelect={(e) => setInput((prev) => prev + e)} />
+            <button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className={cn(
+                "p-2 rounded-lg transition-all",
+                input.trim()
+                  ? "bg-[color:var(--color-accent)] text-[color:var(--color-bg-0)] hover:brightness-110"
+                  : "text-[color:var(--color-text-mute)] cursor-not-allowed",
+              )}
+            >
+              <Send size={16} />
+            </button>
+          </div>
+        </div>
+        <p className="text-xs text-[color:var(--color-text-mute)] mt-1.5 ml-1">
+          Press <kbd className="px-1 py-0.5 rounded text-[10px] bg-[color:var(--color-bg-4)] border border-[color:var(--color-border)]">Enter</kbd> to send ·{" "}
+          <kbd className="px-1 py-0.5 rounded text-[10px] bg-[color:var(--color-bg-4)] border border-[color:var(--color-border)]">Shift+Enter</kbd> for new line
+        </p>
       </div>
     </div>
   );
 }
 
+// ---- Message Bubble ----
+
 interface MessageBubbleProps {
   message: Message;
   author?: User;
   grouped: boolean;
+  replyMsg?: Message | null;
+  replyAuthor?: User | null;
+  isOwn: boolean;
+  currentUserId: string;
+  isHovered: boolean;
+  onHover: (id: string | null) => void;
+  onReply: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onReaction: (emoji: string) => void;
+  isEditing: boolean;
+  editContent: string;
+  onEditChange: (val: string) => void;
+  onEditSave: () => void;
+  onEditCancel: () => void;
 }
 
-function MessageBubble({ message, author, grouped }: MessageBubbleProps) {
+function MessageBubble({
+  message,
+  author,
+  grouped,
+  replyMsg,
+  replyAuthor,
+  isOwn,
+  currentUserId,
+  isHovered,
+  onHover,
+  onReply,
+  onEdit,
+  onDelete,
+  onReaction,
+  isEditing,
+  editContent,
+  onEditChange,
+  onEditSave,
+  onEditCancel,
+}: MessageBubbleProps) {
   const time = new Date(message.timestamp);
   const timeStr = time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const dateStr = time.toLocaleDateString([], { month: "short", day: "numeric" });
-
-  if (grouped) {
-    return (
-      <div className="flex gap-4 py-0.5 pl-14 group hover:bg-[color:var(--color-bg-2)]/30 rounded">
-        <span className="absolute left-4 text-[10px] text-[color:var(--color-text-mute)] opacity-0 group-hover:opacity-100 w-10 text-right">
-          {timeStr}
-        </span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-[color:var(--color-text)] break-words">{message.content}</p>
-        </div>
-      </div>
-    );
-  }
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   return (
-    <div className="flex gap-4 py-2 group hover:bg-[color:var(--color-bg-2)]/30 rounded px-2 -mx-2 relative">
-      <Avatar user={author} size="md" className="mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2 mb-0.5">
-          <span className="font-medium text-sm text-[color:var(--color-text)]">{author?.username || "Unknown"}</span>
-          <span className="text-[11px] text-[color:var(--color-text-mute)]">{dateStr} at {timeStr}</span>
+    <div
+      className={cn("group relative px-2 py-0.5 rounded-lg", isHovered && "bg-[color:var(--color-bg-3)]")}
+      onMouseEnter={() => onHover(message.id)}
+      onMouseLeave={() => onHover(null)}
+    >
+      {/* Reply context */}
+      {replyMsg && (
+        <div className="flex items-center gap-2 ml-10 mb-0.5 text-xs text-[color:var(--color-text-mute)]">
+          <Reply size={10} className="flex-shrink-0" />
+          <span className="font-medium text-[color:var(--color-text-dim)]">{replyAuthor?.username ?? "Unknown"}</span>
+          <span className="truncate">{replyMsg.content.slice(0, 60)}{replyMsg.content.length > 60 ? "…" : ""}</span>
         </div>
-        <p className="text-sm text-[color:var(--color-text)] break-words leading-relaxed">{message.content}</p>
+      )}
+
+      <div className="flex gap-3">
+        {/* Avatar or spacer */}
+        {grouped ? (
+          <div className="w-10 flex-shrink-0 flex items-center justify-end">
+            {isHovered && (
+              <span className="text-[10px] text-[color:var(--color-text-mute)] select-none leading-none">
+                {timeStr}
+              </span>
+            )}
+          </div>
+        ) : (
+          <Avatar user={author} size="sm" className="flex-shrink-0 mt-0.5" />
+        )}
+
+        <div className="flex-1 min-w-0">
+          {!grouped && (
+            <div className="flex items-baseline gap-2 mb-0.5">
+              <span className="text-sm font-semibold text-[color:var(--color-text)]">
+                {author?.username ?? "Unknown"}
+              </span>
+              <span className="text-[11px] text-[color:var(--color-text-mute)]">
+                {dateStr} at {timeStr}
+              </span>
+            </div>
+          )}
+
+          {/* Message content or edit form */}
+          {isEditing ? (
+            <div className="mt-1">
+              <textarea
+                value={editContent}
+                onChange={(e) => onEditChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onEditSave(); }
+                  if (e.key === "Escape") onEditCancel();
+                }}
+                className="w-full text-sm bg-[color:var(--color-bg-0)] border border-[color:var(--color-accent)] rounded-lg p-2 text-[color:var(--color-text)] focus:outline-none resize-none"
+                rows={2}
+                autoFocus
+              />
+              <div className="flex gap-2 mt-1">
+                <button onClick={onEditSave} className="flex items-center gap-1 text-xs text-[color:var(--color-accent)] hover:underline">
+                  <CheckCheck size={12} /> Save
+                </button>
+                <button onClick={onEditCancel} className="text-xs text-[color:var(--color-text-mute)] hover:underline">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-[color:var(--color-text)] leading-relaxed whitespace-pre-wrap break-words">
+              {message.content}
+              {message.edited && (
+                <span className="text-[10px] text-[color:var(--color-text-mute)] ml-1.5">(edited)</span>
+              )}
+            </p>
+          )}
+
+          {/* Reactions */}
+          {message.reactions && Object.keys(message.reactions).length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {Object.entries(message.reactions).map(([emoji, users]) => (
+                <button
+                  key={emoji}
+                  onClick={() => onReaction(emoji)}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-all",
+                    users.includes(currentUserId)
+                      ? "bg-[color:var(--color-accent)]/15 border-[color:var(--color-accent)]/40 text-[color:var(--color-accent)]"
+                      : "bg-[color:var(--color-bg-4)] border-[color:var(--color-border)] text-[color:var(--color-text-dim)] hover:border-[color:var(--color-border-strong)]",
+                  )}
+                  title={users.join(", ")}
+                >
+                  {emoji} <span>{users.length}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Action toolbar */}
+      {isHovered && !isEditing && (
+        <div className="absolute right-2 top-0 -translate-y-1/2 flex items-center gap-0.5 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-3)] shadow-lg p-0.5 z-10 fade-in">
+          {QUICK_EMOJIS.slice(0, 4).map((e) => (
+            <button
+              key={e}
+              onClick={() => onReaction(e)}
+              className="w-7 h-7 rounded flex items-center justify-center text-sm hover:bg-[color:var(--color-bg-4)] transition-colors"
+            >
+              {e}
+            </button>
+          ))}
+          <div className="w-px h-4 bg-[color:var(--color-border)] mx-0.5" />
+          <ActionBtn icon={<Reply size={13} />} title="Reply" onClick={onReply} />
+          {isOwn && (
+            <>
+              <ActionBtn icon={<Pencil size={13} />} title="Edit" onClick={onEdit} />
+              <ActionBtn icon={<Trash2 size={13} />} title="Delete" onClick={onDelete} danger />
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActionBtn({
+  icon,
+  title,
+  onClick,
+  danger,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={cn(
+        "w-7 h-7 rounded flex items-center justify-center transition-colors",
+        danger
+          ? "text-[color:var(--color-text-mute)] hover:text-[color:var(--color-danger)] hover:bg-[color:var(--color-danger)]/10"
+          : "text-[color:var(--color-text-mute)] hover:text-[color:var(--color-text)] hover:bg-[color:var(--color-bg-4)]",
+      )}
+    >
+      {icon}
+    </button>
+  );
+}
+
+function EmojiPicker({ onSelect }: { onSelect: (e: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="p-2 rounded-lg text-[color:var(--color-text-mute)] hover:text-[color:var(--color-text)] hover:bg-[color:var(--color-bg-4)] transition-colors"
+        title="Emoji"
+      >
+        <Smile size={16} />
+      </button>
+      {open && (
+        <div className="absolute bottom-10 right-0 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-3)] p-2 shadow-xl z-20 slide-up">
+          <div className="grid grid-cols-8 gap-1">
+            {[...QUICK_EMOJIS, "👋", "💪", "🙌", "🤝", "💯", "⭐", "🚀", "💡", "❓", "‼️", "✅", "❌", "📌", "🔗", "📢", "🎯"].map((e) => (
+              <button
+                key={e}
+                onClick={() => { onSelect(e); setOpen(false); }}
+                className="w-8 h-8 flex items-center justify-center rounded text-base hover:bg-[color:var(--color-bg-4)] transition-colors"
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { ArrowRight, Link2, Mail, Lock, User as UserIcon } from "lucide-react";
+import { ArrowRight, Link2, Mail, Lock, User as UserIcon, Eye, EyeOff } from "lucide-react";
 import { login, signup } from "../lib/auth";
 import { Button, Input, Divider } from "./ui/Primitives";
 import type { User } from "../lib/types";
@@ -14,6 +14,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
   const [mode, setMode] = useState<Mode>("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -26,6 +27,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
     setPassword("");
     setConfirm("");
     setError(null);
+    setShowPassword(false);
   }
 
   function switchMode(m: Mode) {
@@ -38,7 +40,6 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
     setLoading(true);
     setError(null);
 
-    // Slight delay so the loading state is visible
     setTimeout(() => {
       let result;
       if (mode === "signup") {
@@ -62,204 +63,189 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
   }
 
   return (
-    <div className="min-h-full flex">
+    <div className="min-h-screen flex" style={{ background: "var(--color-bg-0)" }}>
       {/* Left decorative panel */}
-      <div className="hidden lg:flex lg:w-[42%] flex-col justify-between p-12 bg-[color:var(--color-bg-1)] border-r border-[color:var(--color-border)] relative overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.06] pointer-events-none"
-             style={{
-               backgroundImage:
-                 "radial-gradient(circle at 20% 10%, #d4a574 0px, transparent 40%), radial-gradient(circle at 80% 80%, #7c93f5 0px, transparent 40%)",
-             }}
-        />
-        <div className="relative">
-          <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-lg bg-[color:var(--color-accent)] flex items-center justify-center">
-              <Link2 className="h-5 w-5 text-[color:var(--color-bg-0)]" strokeWidth={2.5} />
-            </div>
-            <span className="text-xl font-semibold tracking-tight">VoiceLink</span>
-          </div>
+      <div
+        className="hidden lg:flex lg:w-[55%] flex-col justify-between p-12 relative overflow-hidden"
+        style={{ background: "linear-gradient(135deg, var(--color-bg-1) 0%, var(--color-bg-2) 100%)" }}
+      >
+        {/* Background decoration */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div
+            className="absolute -top-32 -right-32 w-96 h-96 rounded-full opacity-10"
+            style={{ background: "radial-gradient(circle, var(--color-accent), transparent)" }}
+          />
+          <div
+            className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full opacity-8"
+            style={{ background: "radial-gradient(circle, #7c93f5, transparent)" }}
+          />
         </div>
 
-        <div className="relative space-y-6">
-          <h1 className="text-4xl font-semibold tracking-tight leading-tight">
-            Where conversations <span className="text-[color:var(--color-accent)]">find a home.</span>
+        {/* Logo */}
+        <div className="flex items-center gap-3 z-10">
+          <div
+            className="h-10 w-10 rounded-xl flex items-center justify-center"
+            style={{ background: "var(--color-accent)" }}
+          >
+            <Link2 size={20} style={{ color: "var(--color-bg-0)" }} />
+          </div>
+          <span className="font-bold text-xl text-[color:var(--color-text)]">VoiceLink</span>
+        </div>
+
+        {/* Headline */}
+        <div className="z-10 max-w-md">
+          <h1
+            className="text-4xl font-bold leading-tight mb-4"
+            style={{ color: "var(--color-text)" }}
+          >
+            Where conversations
+            <span style={{ color: "var(--color-accent)" }}> find a home.</span>
           </h1>
-          <p className="text-[color:var(--color-text-dim)] text-base leading-relaxed max-w-md">
-            Hang out in voice rooms, jump into video calls, and stay in touch with the people who matter. All in one calm, focused place.
+          <p className="text-lg text-[color:var(--color-text-dim)] mb-10 leading-relaxed">
+            Hang out in voice rooms, jump into video calls, and stay in touch with the people who matter.
+            All in one calm, focused place.
           </p>
-          <div className="grid grid-cols-2 gap-3 max-w-md pt-4">
-            <Feature icon="audio-lines" label="Crystal-clear voice" />
-            <Feature icon="video" label="HD video rooms" />
-            <Feature icon="message-square" label="Persistent chat" />
-            <Feature icon="users" label="Built for teams" />
+
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { icon: "🎙️", label: "Crystal-clear voice" },
+              { icon: "📹", label: "HD video calls" },
+              { icon: "💬", label: "Real-time messaging" },
+              { icon: "👥", label: "Team servers" },
+            ].map(({ icon, label }) => (
+              <div
+                key={label}
+                className="flex items-center gap-3 p-3 rounded-xl"
+                style={{ background: "rgba(212,165,116,0.07)", border: "1px solid rgba(212,165,116,0.12)" }}
+              >
+                <span className="text-xl">{icon}</span>
+                <span className="text-sm text-[color:var(--color-text-dim)]">{label}</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="relative text-xs text-[color:var(--color-text-mute)]">
-          VoiceLink &middot; Crafted with care
-        </div>
+        <p className="text-xs text-[color:var(--color-text-mute)] z-10">
+          VoiceLink · Crafted with care · MIT License
+        </p>
       </div>
 
       {/* Auth form */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
+      <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
-          <div className="lg:hidden flex items-center gap-2.5 mb-10">
-            <div className="h-9 w-9 rounded-lg bg-[color:var(--color-accent)] flex items-center justify-center">
-              <Link2 className="h-5 w-5 text-[color:var(--color-bg-0)]" strokeWidth={2.5} />
+          {/* Mobile logo */}
+          <div className="flex items-center gap-2 mb-8 lg:hidden">
+            <div
+              className="h-8 w-8 rounded-lg flex items-center justify-center"
+              style={{ background: "var(--color-accent)" }}
+            >
+              <Link2 size={16} style={{ color: "var(--color-bg-0)" }} />
             </div>
-            <span className="text-xl font-semibold tracking-tight">VoiceLink</span>
+            <span className="font-bold text-lg text-[color:var(--color-text)]">VoiceLink</span>
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-semibold tracking-tight">
+            <h2 className="text-2xl font-bold text-[color:var(--color-text)] mb-1">
               {mode === "login" ? "Welcome back" : "Create your account"}
             </h2>
-            <p className="mt-1.5 text-sm text-[color:var(--color-text-dim)]">
+            <p className="text-sm text-[color:var(--color-text-dim)]">
               {mode === "login"
                 ? "Sign in to pick up right where you left off."
                 : "It takes less than a minute to get started."}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {mode === "signup" && (
               <Input
                 label="Username"
-                name="username"
+                type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="alex_rivera"
                 autoComplete="username"
                 required
-                icon={<UserIcon className="h-4 w-4" />}
-              />
-            )}
-            {mode === "login" && (
-              <Input
-                label="Username or email"
-                name="identifier"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="you@domain.com"
-                autoComplete="username"
-                required
-                icon={<Mail className="h-4 w-4" />}
-              />
-            )}
-            {mode === "signup" && (
-              <Input
-                label="Email"
-                name="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@domain.com"
-                autoComplete="email"
-                required
-                icon={<Mail className="h-4 w-4" />}
+                icon={<UserIcon size={15} />}
               />
             )}
             <Input
-              label="Password"
-              name="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              label={mode === "login" ? "Username or email" : "Email"}
+              type={mode === "login" ? "text" : "email"}
+              value={mode === "login" ? username : email}
+              onChange={(e) => mode === "login" ? setUsername(e.target.value) : setEmail(e.target.value)}
+              placeholder="you@domain.com"
+              autoComplete={mode === "login" ? "username" : "email"}
               required
-              icon={<Lock className="h-4 w-4" />}
+              icon={<Mail size={15} />}
             />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-[color:var(--color-text-dim)]">
+                Password
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-text-mute)]">
+                  <Lock size={15} />
+                </span>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  required
+                  className="w-full h-10 rounded-lg border text-sm transition-colors focus-ring bg-[color:var(--color-bg-0)] text-[color:var(--color-text)] border-[color:var(--color-border)] focus:border-[color:var(--color-accent)] placeholder:text-[color:var(--color-text-mute)] pl-9 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--color-text-mute)] hover:text-[color:var(--color-text)] transition-colors"
+                >
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
             {mode === "signup" && (
               <Input
-                label="Confirm password"
-                name="confirm"
-                type="password"
+                label="Confirm Password"
+                type={showPassword ? "text" : "password"}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder="Re-enter your password"
                 autoComplete="new-password"
                 required
-                icon={<Lock className="h-4 w-4" />}
+                icon={<Lock size={15} />}
               />
             )}
 
             {error && (
-              <div className="rounded-md border border-[color:var(--color-danger)]/30 bg-[color:var(--color-danger)]/10 px-3 py-2 text-sm text-[color:var(--color-danger)]">
+              <div className="px-3 py-2.5 rounded-lg text-sm text-[color:var(--color-danger)] bg-[color:var(--color-danger)]/10 border border-[color:var(--color-danger)]/20">
                 {error}
               </div>
             )}
 
-            <Button type="submit" size="lg" className="w-full" loading={loading}>
+            <Button type="submit" loading={loading} size="lg" className="mt-1 w-full">
               {mode === "login" ? "Sign in" : "Create account"}
-              {!loading && <ArrowRight className="h-4 w-4" />}
+              {!loading && <ArrowRight size={16} />}
             </Button>
+
+            <Divider />
+
+            <button
+              type="button"
+              onClick={() => switchMode(mode === "login" ? "signup" : "login")}
+              className="w-full text-center text-sm text-[color:var(--color-text-dim)] hover:text-[color:var(--color-accent)] transition-colors py-1"
+            >
+              {mode === "login"
+                ? "Don't have an account? Create one"
+                : "Already have an account? Sign in"}
+            </button>
           </form>
 
-          <Divider label={mode === "login" ? "New here?" : "Already a member?"} />
-
-          <button
-            type="button"
-            onClick={() => switchMode(mode === "login" ? "signup" : "login")}
-            className="w-full text-center text-sm text-[color:var(--color-text-dim)] hover:text-[color:var(--color-accent)] transition-colors"
-          >
-            {mode === "login"
-              ? "Create a new account"
-              : "Sign in to an existing account"}
-          </button>
-
-          <p className="mt-8 text-[11px] text-[color:var(--color-text-mute)] leading-relaxed">
-            By continuing you agree to keep your password safe. VoiceLink stores accounts locally in your browser for this demo.
+          <p className="mt-6 text-center text-xs text-[color:var(--color-text-mute)] leading-relaxed">
+            VoiceLink stores accounts locally in your browser for this demo.
           </p>
         </div>
       </div>
     </div>
-  );
-}
-
-function Feature({ icon, label }: { icon: string; label: string }) {
-  const icons: Record<string, React.ReactNode> = {
-    "audio-lines": <AudioLinesIcon />,
-    video: <VideoIcon />,
-    "message-square": <MessageIcon />,
-    users: <UsersIcon />,
-  };
-  return (
-    <div className="flex items-center gap-2.5 p-3 rounded-lg bg-[color:var(--color-bg-2)] border border-[color:var(--color-border)]">
-      <div className="text-[color:var(--color-accent)]">{icons[icon]}</div>
-      <span className="text-sm text-[color:var(--color-text)]">{label}</span>
-    </div>
-  );
-}
-
-function AudioLinesIcon() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 10v4M6 6v12M10 3v18M14 8v8M18 5v14M22 10v4" />
-    </svg>
-  );
-}
-function VideoIcon() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m22 8-6 4 6 4V8Z" />
-      <rect width="14" height="12" x="2" y="6" rx="2" />
-    </svg>
-  );
-}
-function MessageIcon() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-function UsersIcon() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
   );
 }
