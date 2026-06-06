@@ -6,7 +6,7 @@ interface ModalProps {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "full";
   className?: string;
   closeOnBackdrop?: boolean;
 }
@@ -39,21 +39,23 @@ export function Modal({
     md: "max-w-md",
     lg: "max-w-xl",
     xl: "max-w-3xl",
+    full: "max-w-5xl",
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 fade-in">
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={closeOnBackdrop ? onClose : undefined}
-      />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 fade-in"
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+      onClick={closeOnBackdrop ? onClose : undefined}
+    >
       <div
         className={cn(
-          "relative w-full rounded-xl bg-[color:var(--color-bg-2)] border border-[color:var(--color-border)]",
-          "shadow-2xl slide-up overflow-hidden",
+          "relative w-full rounded-2xl border border-[color:var(--color-border)] slide-up",
+          "bg-[color:var(--color-bg-2)] shadow-2xl overflow-hidden",
           sizes[size],
           className,
         )}
+        onClick={(e) => e.stopPropagation()}
       >
         {children}
       </div>
@@ -69,18 +71,20 @@ interface ModalHeaderProps {
 
 export function ModalHeader({ title, subtitle, onClose }: ModalHeaderProps) {
   return (
-    <div className="flex items-start justify-between px-6 pt-6 pb-4">
+    <div className="flex items-start justify-between p-6 pb-4 border-b border-[color:var(--color-border)]">
       <div>
-        <h2 className="text-xl font-semibold text-[color:var(--color-text)] tracking-tight">{title}</h2>
-        {subtitle && <p className="mt-1 text-sm text-[color:var(--color-text-dim)]">{subtitle}</p>}
+        <h2 className="text-base font-semibold text-[color:var(--color-text)]">{title}</h2>
+        {subtitle && (
+          <p className="text-sm text-[color:var(--color-text-dim)] mt-0.5">{subtitle}</p>
+        )}
       </div>
       {onClose && (
         <button
           onClick={onClose}
-          className="p-1.5 -mr-1.5 -mt-1.5 rounded-md text-[color:var(--color-text-mute)] hover:text-[color:var(--color-text)] hover:bg-[color:var(--color-bg-3)] transition-colors focus-ring"
+          className="ml-4 p-1.5 rounded-lg text-[color:var(--color-text-mute)] hover:text-[color:var(--color-text)] hover:bg-[color:var(--color-bg-3)] transition-colors focus-ring"
           aria-label="Close"
         >
-          <X className="h-5 w-5" />
+          <X size={16} />
         </button>
       )}
     </div>

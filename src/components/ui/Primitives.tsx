@@ -1,8 +1,15 @@
 import { cn } from "../../utils/cn";
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+  TextareaHTMLAttributes,
+  SelectHTMLAttributes,
+} from "react";
+import { Loader2 } from "lucide-react";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "subtle";
-type ButtonSize = "sm" | "md" | "lg";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "subtle" | "success";
+type ButtonSize = "xs" | "sm" | "md" | "lg";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -23,6 +30,7 @@ export function Button({
   const base =
     "inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all duration-150 focus-ring disabled:opacity-50 disabled:cursor-not-allowed select-none whitespace-nowrap";
   const sizes: Record<ButtonSize, string> = {
+    xs: "h-7 px-2.5 text-xs",
     sm: "h-8 px-3 text-[13px]",
     md: "h-10 px-4 text-sm",
     lg: "h-11 px-5 text-sm",
@@ -30,22 +38,27 @@ export function Button({
   const variants: Record<ButtonVariant, string> = {
     primary:
       "bg-[color:var(--color-accent)] text-[color:var(--color-bg-0)] hover:brightness-110 active:brightness-95",
-    secondary: "bg-[color:var(--color-bg-4)] text-[color:var(--color-text)] hover:bg-[color:var(--color-border-strong)]",
-    ghost: "text-[color:var(--color-text-dim)] hover:text-[color:var(--color-text)] hover:bg-[color:var(--color-bg-3)]",
-    danger: "bg-[color:var(--color-danger)]/10 text-[color:var(--color-danger)] hover:bg-[color:var(--color-danger)]/15",
+    secondary:
+      "bg-[color:var(--color-bg-4)] text-[color:var(--color-text)] hover:bg-[color:var(--color-border-strong)]",
+    ghost:
+      "text-[color:var(--color-text-dim)] hover:text-[color:var(--color-text)] hover:bg-[color:var(--color-bg-3)]",
+    danger:
+      "bg-[color:var(--color-danger)]/10 text-[color:var(--color-danger)] hover:bg-[color:var(--color-danger)]/20",
     subtle:
       "bg-transparent text-[color:var(--color-text-dim)] border border-[color:var(--color-border)] hover:border-[color:var(--color-border-strong)] hover:text-[color:var(--color-text)]",
+    success:
+      "bg-[color:var(--color-success)]/15 text-[color:var(--color-success)] hover:bg-[color:var(--color-success)]/25",
   };
   return (
     <button
-      {...rest}
-      disabled={disabled || loading}
       className={cn(base, sizes[size], variants[variant], className)}
+      disabled={disabled || loading}
+      {...rest}
     >
       {loading ? (
         <>
-          <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
-          <span>Please wait...</span>
+          <Loader2 size={14} className="animate-spin" />
+          Please wait…
         </>
       ) : (
         children
@@ -64,11 +77,11 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 export function Input({ label, error, hint, icon, className, id, ...rest }: InputProps) {
   const inputId = id || rest.name;
   return (
-    <div className="w-full">
+    <div className="flex flex-col gap-1.5">
       {label && (
         <label
           htmlFor={inputId}
-          className="block text-[11px] font-semibold uppercase tracking-wider text-[color:var(--color-text-mute)] mb-2"
+          className="text-xs font-semibold uppercase tracking-wider text-[color:var(--color-text-dim)]"
         >
           {label}
         </label>
@@ -82,18 +95,21 @@ export function Input({ label, error, hint, icon, className, id, ...rest }: Inpu
         <input
           id={inputId}
           className={cn(
-            "w-full h-10 rounded-md text-sm bg-[color:var(--color-bg-0)] border",
-            "text-[color:var(--color-text)] placeholder:text-[color:var(--color-text-mute)]",
-            "focus:outline-none focus:border-[color:var(--color-accent)] transition-colors",
+            "w-full h-10 rounded-lg border text-sm transition-colors focus-ring",
+            "bg-[color:var(--color-bg-0)] text-[color:var(--color-text)]",
+            "border-[color:var(--color-border)] focus:border-[color:var(--color-accent)]",
+            "placeholder:text-[color:var(--color-text-mute)]",
             icon ? "pl-9 pr-3" : "px-3",
-            error ? "border-[color:var(--color-danger)]" : "border-[color:var(--color-border)]",
+            error && "border-[color:var(--color-danger)]",
             className,
           )}
           {...rest}
         />
       </div>
-      {hint && !error && <p className="mt-1.5 text-xs text-[color:var(--color-text-mute)]">{hint}</p>}
-      {error && <p className="mt-1.5 text-xs text-[color:var(--color-danger)]">{error}</p>}
+      {hint && !error && (
+        <p className="text-xs text-[color:var(--color-text-mute)]">{hint}</p>
+      )}
+      {error && <p className="text-xs text-[color:var(--color-danger)]">{error}</p>}
     </div>
   );
 }
@@ -106,11 +122,11 @@ interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 export function Textarea({ label, error, className, id, ...rest }: TextareaProps) {
   const inputId = id || rest.name;
   return (
-    <div className="w-full">
+    <div className="flex flex-col gap-1.5">
       {label && (
         <label
           htmlFor={inputId}
-          className="block text-[11px] font-semibold uppercase tracking-wider text-[color:var(--color-text-mute)] mb-2"
+          className="text-xs font-semibold uppercase tracking-wider text-[color:var(--color-text-dim)]"
         >
           {label}
         </label>
@@ -118,29 +134,117 @@ export function Textarea({ label, error, className, id, ...rest }: TextareaProps
       <textarea
         id={inputId}
         className={cn(
-          "w-full min-h-[80px] px-3 py-2 rounded-md text-sm bg-[color:var(--color-bg-0)] border resize-y",
-          "text-[color:var(--color-text)] placeholder:text-[color:var(--color-text-mute)]",
-          "focus:outline-none focus:border-[color:var(--color-accent)] transition-colors",
-          error ? "border-[color:var(--color-danger)]" : "border-[color:var(--color-border)]",
+          "w-full rounded-lg border text-sm transition-colors focus-ring resize-none",
+          "bg-[color:var(--color-bg-0)] text-[color:var(--color-text)]",
+          "border-[color:var(--color-border)] focus:border-[color:var(--color-accent)]",
+          "placeholder:text-[color:var(--color-text-mute)] p-3",
+          error && "border-[color:var(--color-danger)]",
           className,
         )}
         {...rest}
       />
-      {error && <p className="mt-1.5 text-xs text-[color:var(--color-danger)]">{error}</p>}
+      {error && <p className="text-xs text-[color:var(--color-danger)]">{error}</p>}
     </div>
   );
 }
 
-export function Divider({ label }: { label?: string }) {
+interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+  label?: string;
+  children: ReactNode;
+}
+
+export function Select({ label, className, id, children, ...rest }: SelectProps) {
+  const inputId = id || rest.name;
   return (
-    <div className="flex items-center gap-3 py-2">
-      <div className="flex-1 h-px bg-[color:var(--color-border)]" />
+    <div className="flex flex-col gap-1.5">
       {label && (
-        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--color-text-mute)]">
+        <label
+          htmlFor={inputId}
+          className="text-xs font-semibold uppercase tracking-wider text-[color:var(--color-text-dim)]"
+        >
           {label}
-        </span>
+        </label>
       )}
-      <div className="flex-1 h-px bg-[color:var(--color-border)]" />
+      <select
+        id={inputId}
+        className={cn(
+          "w-full h-10 rounded-lg border text-sm transition-colors focus-ring px-3",
+          "bg-[color:var(--color-bg-0)] text-[color:var(--color-text)]",
+          "border-[color:var(--color-border)] focus:border-[color:var(--color-accent)]",
+          className,
+        )}
+        {...rest}
+      >
+        {children}
+      </select>
+    </div>
+  );
+}
+
+interface DividerProps {
+  label?: string;
+  className?: string;
+}
+
+export function Divider({ label, className }: DividerProps) {
+  if (label) {
+    return (
+      <div className={cn("flex items-center gap-3 my-2", className)}>
+        <div className="flex-1 h-px bg-[color:var(--color-border)]" />
+        <span className="text-xs text-[color:var(--color-text-mute)] font-medium">{label}</span>
+        <div className="flex-1 h-px bg-[color:var(--color-border)]" />
+      </div>
+    );
+  }
+  return <div className={cn("my-2 h-px bg-[color:var(--color-border)]", className)} />;
+}
+
+interface BadgeProps {
+  count: number;
+  className?: string;
+}
+
+export function Badge({ count, className }: BadgeProps) {
+  if (count <= 0) return null;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full",
+        "bg-[color:var(--color-danger)] text-white text-[10px] font-bold",
+        className,
+      )}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
+interface TooltipProps {
+  label: string;
+  children: ReactNode;
+  side?: "top" | "bottom" | "left" | "right";
+}
+
+export function Tooltip({ label, children, side = "right" }: TooltipProps) {
+  const positions = {
+    top: "bottom-full left-1/2 -translate-x-1/2 mb-2",
+    bottom: "top-full left-1/2 -translate-x-1/2 mt-2",
+    left: "right-full top-1/2 -translate-y-1/2 mr-2",
+    right: "left-full top-1/2 -translate-y-1/2 ml-2",
+  };
+  return (
+    <div className="relative group">
+      {children}
+      <div
+        className={cn(
+          "absolute z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity",
+          "px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap",
+          "bg-[color:var(--color-bg-4)] text-[color:var(--color-text)] border border-[color:var(--color-border)]",
+          positions[side],
+        )}
+      >
+        {label}
+      </div>
     </div>
   );
 }
