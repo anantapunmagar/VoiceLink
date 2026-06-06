@@ -55,7 +55,7 @@ export default function App() {
               />
             ))}
           </div>
-          <p className="text-sm text-[color:var(--color-text-mute)]">Loading VoiceLink…</p>
+          <p className="text-sm text-[color:var(--color-text-mute)]">Loading VoiceLink...</p>
         </div>
       </div>
     );
