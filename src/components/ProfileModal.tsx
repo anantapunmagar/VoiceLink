@@ -1,10 +1,11 @@
 import { useState, useRef } from "react";
-import { Camera, X, Save, Trash2 } from "lucide-react";
+import { Camera, Save, Trash2, Check } from "lucide-react";
 import type { User } from "../lib/types";
 import { Modal, ModalHeader } from "./ui/Modal";
 import { Button, Input, Textarea } from "./ui/Primitives";
 import { updateUser } from "../lib/auth";
 import { Avatar, colorForName, initials } from "./ui/Avatar";
+import { cn } from "../utils/cn";
 
 interface ProfileModalProps {
   open: boolean;
@@ -20,10 +21,10 @@ const bannerColors = [
 ];
 
 const statusOptions: Array<{ value: User["status"]; label: string; dot: string }> = [
-  { value: "online", label: "Online", dot: "bg-[color:var(--color-success)]" },
-  { value: "idle", label: "Idle", dot: "bg-[color:var(--color-accent)]" },
-  { value: "dnd", label: "Do Not Disturb", dot: "bg-[color:var(--color-danger)]" },
-  { value: "offline", label: "Invisible", dot: "bg-[color:var(--color-text-mute)]" },
+  { value: "online",  label: "Online",          dot: "bg-[color:var(--color-success)]"   },
+  { value: "idle",    label: "Idle",             dot: "bg-[color:var(--color-accent)]"    },
+  { value: "dnd",     label: "Do Not Disturb",   dot: "bg-[color:var(--color-danger)]"    },
+  { value: "offline", label: "Invisible",        dot: "bg-[color:var(--color-text-mute)]" },
 ];
 
 export function ProfileModal({ open, onClose, user, onUpdate }: ProfileModalProps) {
@@ -79,7 +80,6 @@ export function ProfileModal({ open, onClose, user, onUpdate }: ProfileModalProp
       <div className="overflow-y-auto max-h-[80vh] p-6">
         {/* Preview card */}
         <div className="rounded-2xl overflow-hidden border border-[color:var(--color-border)] mb-6">
-          {/* Banner */}
           <div className="h-24 relative" style={{ background: banner }}>
             <div className="absolute inset-0 flex items-end px-4 pb-0">
               <div
@@ -98,8 +98,12 @@ export function ProfileModal({ open, onClose, user, onUpdate }: ProfileModalProp
           </div>
           <div className="pt-10 px-4 pb-4" style={{ background: "var(--color-bg-3)" }}>
             <p className="font-semibold text-[color:var(--color-text)]">{previewName}</p>
-            {customStatus && <p className="text-xs text-[color:var(--color-text-dim)] mt-0.5">{customStatus}</p>}
-            {bio && <p className="text-xs text-[color:var(--color-text-dim)] mt-2 leading-relaxed">{bio}</p>}
+            {customStatus && (
+              <p className="text-xs text-[color:var(--color-text-dim)] mt-0.5">{customStatus}</p>
+            )}
+            {bio && (
+              <p className="text-xs text-[color:var(--color-text-dim)] mt-2 leading-relaxed">{bio}</p>
+            )}
           </div>
         </div>
 
@@ -110,7 +114,10 @@ export function ProfileModal({ open, onClose, user, onUpdate }: ProfileModalProp
               Profile Picture
             </label>
             <div className="flex items-center gap-3">
-              <div className="relative group cursor-pointer" onClick={() => fileRef.current?.click()}>
+              <div
+                className="relative group cursor-pointer"
+                onClick={() => fileRef.current?.click()}
+              >
                 <Avatar user={{ username: previewName, avatar, status }} size="lg" />
                 <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                   <Camera size={16} className="text-white" />
@@ -127,7 +134,13 @@ export function ProfileModal({ open, onClose, user, onUpdate }: ProfileModalProp
                 )}
                 <p className="text-xs text-[color:var(--color-text-mute)]">JPG, PNG or GIF · Max 3 MB</p>
               </div>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
             </div>
           </div>
 
@@ -170,7 +183,7 @@ export function ProfileModal({ open, onClose, user, onUpdate }: ProfileModalProp
                       : "border-[color:var(--color-border)] text-[color:var(--color-text-dim)] hover:border-[color:var(--color-border-strong)]",
                   )}
                 >
-                  <span className={`h-2.5 w-2.5 rounded-full ${s.dot}`} />
+                  <span className={cn("h-2.5 w-2.5 rounded-full", s.dot)} />
                   {s.label}
                 </button>
               ))}
@@ -192,7 +205,7 @@ export function ProfileModal({ open, onClose, user, onUpdate }: ProfileModalProp
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             maxLength={24}
-            hint="3–24 characters. Letters, numbers, underscores, dots, dashes."
+            hint="3-24 characters. Letters, numbers, underscores, dots, dashes."
           />
 
           {/* Bio */}
@@ -200,11 +213,13 @@ export function ProfileModal({ open, onClose, user, onUpdate }: ProfileModalProp
             label="About Me"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
-            placeholder="Tell people a little about yourself…"
+            placeholder="Tell people a little about yourself..."
             rows={3}
             maxLength={200}
           />
-          <p className="text-xs text-[color:var(--color-text-mute)] -mt-3 text-right">{bio.length}/200</p>
+          <p className="text-xs text-[color:var(--color-text-mute)] -mt-3 text-right">
+            {bio.length}/200
+          </p>
 
           {error && (
             <p className="text-sm text-[color:var(--color-danger)] bg-[color:var(--color-danger)]/10 px-3 py-2 rounded-lg">
@@ -215,14 +230,21 @@ export function ProfileModal({ open, onClose, user, onUpdate }: ProfileModalProp
       </div>
 
       <div className="flex justify-end gap-3 px-6 py-4 border-t border-[color:var(--color-border)]">
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
         <Button onClick={handleSave} variant={saved ? "success" : "primary"}>
-          {saved ? "✓ Saved!" : <><Save size={15} /> Save Changes</>}
+          {saved ? (
+            <>
+              <Check size={15} /> Saved
+            </>
+          ) : (
+            <>
+              <Save size={15} /> Save Changes
+            </>
+          )}
         </Button>
       </div>
     </Modal>
   );
 }
-
-// helper import needed inside this file
-import { cn } from "../utils/cn";

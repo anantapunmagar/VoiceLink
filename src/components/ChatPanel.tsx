@@ -2,14 +2,17 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Hash,
   Send,
-  Smile,
   Reply,
   Pencil,
   Trash2,
-  Pin,
-  MoreHorizontal,
   X,
   CheckCheck,
+  ThumbsUp,
+  Heart,
+  Laugh,
+  Frown,
+  Zap,
+  Star,
 } from "lucide-react";
 import type { Channel, Server, User, Message } from "../lib/types";
 import { chatBus } from "../lib/chat";
@@ -23,7 +26,15 @@ interface ChatPanelProps {
   currentUser: User;
 }
 
-const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥", "✨"];
+// Icon-based reactions instead of emojis
+const QUICK_REACTIONS: Array<{ key: string; icon: React.ReactNode; label: string }> = [
+  { key: "+1", icon: <ThumbsUp size={12} />, label: "Like" },
+  { key: "heart", icon: <Heart size={12} />, label: "Love" },
+  { key: "laugh", icon: <Laugh size={12} />, label: "Haha" },
+  { key: "sad", icon: <Frown size={12} />, label: "Sad" },
+  { key: "zap", icon: <Zap size={12} />, label: "Wow" },
+  { key: "star", icon: <Star size={12} />, label: "Star" },
+];
 
 export function ChatPanel({ channel, server, currentUser }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -160,8 +171,8 @@ export function ChatPanel({ channel, server, currentUser }: ChatPanelProps) {
     chatBus.deleteMessage(msg.id, currentUser.id);
   }
 
-  function handleReaction(msgId: string, emoji: string) {
-    chatBus.toggleReaction(msgId, emoji, currentUser.id);
+  function handleReaction(msgId: string, reactionKey: string) {
+    chatBus.toggleReaction(msgId, reactionKey, currentUser.id);
   }
 
   const allUsers = storage.getUsers();
@@ -193,7 +204,8 @@ export function ChatPanel({ channel, server, currentUser }: ChatPanelProps) {
               Welcome to #{channel.name}
             </h3>
             <p className="text-sm text-[color:var(--color-text-dim)] max-w-sm">
-              {channel.topic || `This is the start of the #${channel.name} channel. Send a message to get the conversation going.`}
+              {channel.topic ||
+                `This is the start of the #${channel.name} channel. Send a message to get the conversation going.`}
             </p>
           </div>
         )}
@@ -229,12 +241,15 @@ export function ChatPanel({ channel, server, currentUser }: ChatPanelProps) {
                 setEditContent(msg.content);
               }}
               onDelete={() => handleDelete(msg)}
-              onReaction={(emoji) => handleReaction(msg.id, emoji)}
+              onReaction={(key) => handleReaction(msg.id, key)}
               isEditing={editingId === msg.id}
               editContent={editContent}
               onEditChange={setEditContent}
               onEditSave={handleEditSave}
-              onEditCancel={() => { setEditingId(null); setEditContent(""); }}
+              onEditCancel={() => {
+                setEditingId(null);
+                setEditContent("");
+              }}
             />
           );
         })}
@@ -253,10 +268,10 @@ export function ChatPanel({ channel, server, currentUser }: ChatPanelProps) {
             </div>
             <span>
               {typingUsers.length === 1
-                ? `${typingUsers[0]} is typing…`
+                ? `${typingUsers[0]} is typing...`
                 : typingUsers.length === 2
-                ? `${typingUsers[0]} and ${typingUsers[1]} are typing…`
-                : "Several people are typing…"}
+                ? `${typingUsers[0]} and ${typingUsers[1]} are typing...`
+                : "Several people are typing..."}
             </span>
           </div>
         )}
@@ -269,9 +284,12 @@ export function ChatPanel({ channel, server, currentUser }: ChatPanelProps) {
         <div className="mx-4 mb-1 px-3 py-2 rounded-t-lg bg-[color:var(--color-bg-3)] flex items-center gap-2 border-l-2 border-[color:var(--color-accent)]">
           <Reply size={14} className="text-[color:var(--color-accent)] flex-shrink-0" />
           <span className="text-xs text-[color:var(--color-text-dim)] truncate flex-1">
-            Replying to <strong>{allUsers.find((u) => u.id === replyTo.authorId)?.username ?? "Unknown"}</strong>:{" "}
-            {replyTo.content.slice(0, 60)}
-            {replyTo.content.length > 60 ? "…" : ""}
+            Replying to{" "}
+            <strong>
+              {allUsers.find((u) => u.id === replyTo.authorId)?.username ?? "Unknown"}
+            </strong>
+            : {replyTo.content.slice(0, 60)}
+            {replyTo.content.length > 60 ? "..." : ""}
           </span>
           <button
             onClick={() => setReplyTo(null)}
@@ -298,7 +316,6 @@ export function ChatPanel({ channel, server, currentUser }: ChatPanelProps) {
             onChange={(e) => {
               setInput(e.target.value);
               handleTyping();
-              // Auto-resize
               e.target.style.height = "auto";
               e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
             }}
@@ -308,7 +325,6 @@ export function ChatPanel({ channel, server, currentUser }: ChatPanelProps) {
             style={{ maxHeight: 120 }}
           />
           <div className="flex items-center gap-1 flex-shrink-0 pb-0.5">
-            <EmojiPicker onSelect={(e) => setInput((prev) => prev + e)} />
             <button
               onClick={handleSend}
               disabled={!input.trim()}
@@ -324,8 +340,15 @@ export function ChatPanel({ channel, server, currentUser }: ChatPanelProps) {
           </div>
         </div>
         <p className="text-xs text-[color:var(--color-text-mute)] mt-1.5 ml-1">
-          Press <kbd className="px-1 py-0.5 rounded text-[10px] bg-[color:var(--color-bg-4)] border border-[color:var(--color-border)]">Enter</kbd> to send ·{" "}
-          <kbd className="px-1 py-0.5 rounded text-[10px] bg-[color:var(--color-bg-4)] border border-[color:var(--color-border)]">Shift+Enter</kbd> for new line
+          Press{" "}
+          <kbd className="px-1 py-0.5 rounded text-[10px] bg-[color:var(--color-bg-4)] border border-[color:var(--color-border)]">
+            Enter
+          </kbd>{" "}
+          to send &middot;{" "}
+          <kbd className="px-1 py-0.5 rounded text-[10px] bg-[color:var(--color-bg-4)] border border-[color:var(--color-border)]">
+            Shift+Enter
+          </kbd>{" "}
+          for new line
         </p>
       </div>
     </div>
@@ -347,7 +370,7 @@ interface MessageBubbleProps {
   onReply: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onReaction: (emoji: string) => void;
+  onReaction: (key: string) => void;
   isEditing: boolean;
   editContent: string;
   onEditChange: (val: string) => void;
@@ -378,11 +401,13 @@ function MessageBubble({
   const time = new Date(message.timestamp);
   const timeStr = time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const dateStr = time.toLocaleDateString([], { month: "short", day: "numeric" });
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   return (
     <div
-      className={cn("group relative px-2 py-0.5 rounded-lg", isHovered && "bg-[color:var(--color-bg-3)]")}
+      className={cn(
+        "group relative px-2 py-0.5 rounded-lg",
+        isHovered && "bg-[color:var(--color-bg-3)]",
+      )}
       onMouseEnter={() => onHover(message.id)}
       onMouseLeave={() => onHover(null)}
     >
@@ -390,13 +415,18 @@ function MessageBubble({
       {replyMsg && (
         <div className="flex items-center gap-2 ml-10 mb-0.5 text-xs text-[color:var(--color-text-mute)]">
           <Reply size={10} className="flex-shrink-0" />
-          <span className="font-medium text-[color:var(--color-text-dim)]">{replyAuthor?.username ?? "Unknown"}</span>
-          <span className="truncate">{replyMsg.content.slice(0, 60)}{replyMsg.content.length > 60 ? "…" : ""}</span>
+          <span className="font-medium text-[color:var(--color-text-dim)]">
+            {replyAuthor?.username ?? "Unknown"}
+          </span>
+          <span className="truncate">
+            {replyMsg.content.slice(0, 60)}
+            {replyMsg.content.length > 60 ? "..." : ""}
+          </span>
         </div>
       )}
 
       <div className="flex gap-3">
-        {/* Avatar or spacer */}
+        {/* Avatar or time spacer */}
         {grouped ? (
           <div className="w-10 flex-shrink-0 flex items-center justify-end">
             {isHovered && (
@@ -428,7 +458,10 @@ function MessageBubble({
                 value={editContent}
                 onChange={(e) => onEditChange(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onEditSave(); }
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    onEditSave();
+                  }
                   if (e.key === "Escape") onEditCancel();
                 }}
                 className="w-full text-sm bg-[color:var(--color-bg-0)] border border-[color:var(--color-accent)] rounded-lg p-2 text-[color:var(--color-text)] focus:outline-none resize-none"
@@ -436,10 +469,16 @@ function MessageBubble({
                 autoFocus
               />
               <div className="flex gap-2 mt-1">
-                <button onClick={onEditSave} className="flex items-center gap-1 text-xs text-[color:var(--color-accent)] hover:underline">
+                <button
+                  onClick={onEditSave}
+                  className="flex items-center gap-1 text-xs text-[color:var(--color-accent)] hover:underline"
+                >
                   <CheckCheck size={12} /> Save
                 </button>
-                <button onClick={onEditCancel} className="text-xs text-[color:var(--color-text-mute)] hover:underline">
+                <button
+                  onClick={onEditCancel}
+                  className="text-xs text-[color:var(--color-text-mute)] hover:underline"
+                >
                   Cancel
                 </button>
               </div>
@@ -448,7 +487,9 @@ function MessageBubble({
             <p className="text-sm text-[color:var(--color-text)] leading-relaxed whitespace-pre-wrap break-words">
               {message.content}
               {message.edited && (
-                <span className="text-[10px] text-[color:var(--color-text-mute)] ml-1.5">(edited)</span>
+                <span className="text-[10px] text-[color:var(--color-text-mute)] ml-1.5">
+                  (edited)
+                </span>
               )}
             </p>
           )}
@@ -456,21 +497,26 @@ function MessageBubble({
           {/* Reactions */}
           {message.reactions && Object.keys(message.reactions).length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
-              {Object.entries(message.reactions).map(([emoji, users]) => (
-                <button
-                  key={emoji}
-                  onClick={() => onReaction(emoji)}
-                  className={cn(
-                    "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-all",
-                    users.includes(currentUserId)
-                      ? "bg-[color:var(--color-accent)]/15 border-[color:var(--color-accent)]/40 text-[color:var(--color-accent)]"
-                      : "bg-[color:var(--color-bg-4)] border-[color:var(--color-border)] text-[color:var(--color-text-dim)] hover:border-[color:var(--color-border-strong)]",
-                  )}
-                  title={users.join(", ")}
-                >
-                  {emoji} <span>{users.length}</span>
-                </button>
-              ))}
+              {Object.entries(message.reactions).map(([key, users]) => {
+                const reaction = QUICK_REACTIONS.find((r) => r.key === key);
+                if (!reaction) return null;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => onReaction(key)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs border transition-all",
+                      users.includes(currentUserId)
+                        ? "bg-[color:var(--color-accent)]/15 border-[color:var(--color-accent)]/40 text-[color:var(--color-accent)]"
+                        : "bg-[color:var(--color-bg-4)] border-[color:var(--color-border)] text-[color:var(--color-text-dim)] hover:border-[color:var(--color-border-strong)]",
+                    )}
+                    title={`${reaction.label} - ${users.length}`}
+                  >
+                    {reaction.icon}
+                    <span>{users.length}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -479,13 +525,14 @@ function MessageBubble({
       {/* Action toolbar */}
       {isHovered && !isEditing && (
         <div className="absolute right-2 top-0 -translate-y-1/2 flex items-center gap-0.5 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-3)] shadow-lg p-0.5 z-10 fade-in">
-          {QUICK_EMOJIS.slice(0, 4).map((e) => (
+          {QUICK_REACTIONS.map((r) => (
             <button
-              key={e}
-              onClick={() => onReaction(e)}
-              className="w-7 h-7 rounded flex items-center justify-center text-sm hover:bg-[color:var(--color-bg-4)] transition-colors"
+              key={r.key}
+              onClick={() => onReaction(r.key)}
+              title={r.label}
+              className="w-7 h-7 rounded flex items-center justify-center text-[color:var(--color-text-mute)] hover:text-[color:var(--color-text)] hover:bg-[color:var(--color-bg-4)] transition-colors"
             >
-              {e}
+              {r.icon}
             </button>
           ))}
           <div className="w-px h-4 bg-[color:var(--color-border)] mx-0.5" />
@@ -526,47 +573,5 @@ function ActionBtn({
     >
       {icon}
     </button>
-  );
-}
-
-function EmojiPicker({ onSelect }: { onSelect: (e: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="p-2 rounded-lg text-[color:var(--color-text-mute)] hover:text-[color:var(--color-text)] hover:bg-[color:var(--color-bg-4)] transition-colors"
-        title="Emoji"
-      >
-        <Smile size={16} />
-      </button>
-      {open && (
-        <div className="absolute bottom-10 right-0 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-3)] p-2 shadow-xl z-20 slide-up">
-          <div className="grid grid-cols-8 gap-1">
-            {[...QUICK_EMOJIS, "👋", "💪", "🙌", "🤝", "💯", "⭐", "🚀", "💡", "❓", "‼️", "✅", "❌", "📌", "🔗", "📢", "🎯"].map((e) => (
-              <button
-                key={e}
-                onClick={() => { onSelect(e); setOpen(false); }}
-                className="w-8 h-8 flex items-center justify-center rounded text-base hover:bg-[color:var(--color-bg-4)] transition-colors"
-              >
-                {e}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
   );
 }

@@ -120,7 +120,7 @@ export function VoicePanel({ channel, currentUser }: VoicePanelProps) {
           <h2 className="font-semibold text-sm text-[color:var(--color-text)]">{channel.name}</h2>
           {inVoice && (
             <p className="text-xs text-[color:var(--color-success)]">
-              ● {peerCount + 1} connected
+              {peerCount + 1} connected
             </p>
           )}
         </div>
@@ -179,7 +179,7 @@ export function VoicePanel({ channel, currentUser }: VoicePanelProps) {
                 {connectionState === "connecting" ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Connecting…
+                    Connecting...
                   </span>
                 ) : (
                   "Join Voice"

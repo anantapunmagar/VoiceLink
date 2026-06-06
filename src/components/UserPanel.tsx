@@ -1,4 +1,4 @@
-import { Settings, LogOut, Mic, Headphones, ChevronUp, Radio, Bell } from "lucide-react";
+import { Settings, LogOut, Mic, Headphones, ChevronUp, Radio } from "lucide-react";
 import type { User } from "../lib/types";
 import { Avatar } from "./ui/Avatar";
 import { cn } from "../utils/cn";
@@ -15,11 +15,11 @@ interface UserPanelProps {
   onUserUpdate: (user: User) => void;
 }
 
-const statusOptions: Array<{ value: User["status"]; label: string; color: string; emoji: string }> = [
-  { value: "online", label: "Online", color: "bg-[color:var(--color-success)]", emoji: "🟢" },
-  { value: "idle", label: "Idle", color: "bg-[color:var(--color-accent)]", emoji: "🟡" },
-  { value: "dnd", label: "Do Not Disturb", color: "bg-[color:var(--color-danger)]", emoji: "🔴" },
-  { value: "offline", label: "Invisible", color: "bg-[color:var(--color-text-mute)]", emoji: "⚫" },
+const statusOptions: Array<{ value: User["status"]; label: string; dot: string }> = [
+  { value: "online",  label: "Online",          dot: "bg-[color:var(--color-success)]"   },
+  { value: "idle",    label: "Idle",             dot: "bg-[color:var(--color-accent)]"    },
+  { value: "dnd",     label: "Do Not Disturb",   dot: "bg-[color:var(--color-danger)]"    },
+  { value: "offline", label: "Invisible",        dot: "bg-[color:var(--color-text-mute)]" },
 ];
 
 export function UserPanel({ user, onProfileClick, onSettingsClick, onLogout, onUserUpdate }: UserPanelProps) {
@@ -43,9 +43,7 @@ export function UserPanel({ user, onProfileClick, onSettingsClick, onLogout, onU
     >
       {/* Status picker */}
       {showStatusMenu && (
-        <div
-          className="absolute bottom-full left-2 right-2 mb-1 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-3)] shadow-xl p-1.5 z-40 slide-up"
-        >
+        <div className="absolute bottom-full left-2 right-2 mb-1 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-3)] shadow-xl p-1.5 z-40 slide-up">
           <p className="text-xs font-semibold text-[color:var(--color-text-mute)] uppercase tracking-wide px-2 py-1">
             Set Status
           </p>
@@ -60,10 +58,10 @@ export function UserPanel({ user, onProfileClick, onSettingsClick, onLogout, onU
                   : "text-[color:var(--color-text-dim)] hover:bg-[color:var(--color-bg-4)]",
               )}
             >
-              <span>{s.emoji}</span>
+              <span className={cn("h-2.5 w-2.5 rounded-full flex-shrink-0", s.dot)} />
               <span>{s.label}</span>
               {user.status === s.value && (
-                <span className="ml-auto text-[color:var(--color-accent)] text-xs">✓</span>
+                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[color:var(--color-accent)]" />
               )}
             </button>
           ))}
@@ -81,11 +79,9 @@ export function UserPanel({ user, onProfileClick, onSettingsClick, onLogout, onU
             <p className="text-sm font-semibold text-[color:var(--color-text)] truncate leading-none mb-0.5">
               {user.username}
             </p>
-            {user.customStatus ? (
-              <p className="text-xs text-[color:var(--color-text-mute)] truncate">{user.customStatus}</p>
-            ) : (
-              <p className="text-xs text-[color:var(--color-text-mute)] truncate">{currentStatus?.label}</p>
-            )}
+            <p className="text-xs text-[color:var(--color-text-mute)] truncate">
+              {user.customStatus || currentStatus?.label}
+            </p>
           </div>
         </button>
 
@@ -132,7 +128,10 @@ export function UserPanel({ user, onProfileClick, onSettingsClick, onLogout, onU
               onClick={() => setShowStatusMenu(!showStatusMenu)}
               className="p-1.5 rounded text-[color:var(--color-text-mute)] hover:text-[color:var(--color-text)] hover:bg-[color:var(--color-bg-3)] transition-colors"
             >
-              <ChevronUp size={15} className={cn("transition-transform", showStatusMenu && "rotate-180")} />
+              <ChevronUp
+                size={15}
+                className={cn("transition-transform", showStatusMenu && "rotate-180")}
+              />
             </button>
           </Tooltip>
 

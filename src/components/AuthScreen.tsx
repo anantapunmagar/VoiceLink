@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { ArrowRight, Link2, Mail, Lock, User as UserIcon, Eye, EyeOff } from "lucide-react";
+import { ArrowRight, Link2, Mail, Lock, User as UserIcon, Eye, EyeOff, Mic, Video, MessageSquare, Users } from "lucide-react";
 import { login, signup } from "../lib/auth";
 import { Button, Input, Divider } from "./ui/Primitives";
 import type { User } from "../lib/types";
@@ -9,6 +9,13 @@ interface AuthScreenProps {
 }
 
 type Mode = "login" | "signup";
+
+const features = [
+  { icon: <Mic size={16} />, label: "Crystal-clear voice" },
+  { icon: <Video size={16} />, label: "HD video calls" },
+  { icon: <MessageSquare size={16} />, label: "Real-time messaging" },
+  { icon: <Users size={16} />, label: "Team servers" },
+];
 
 export function AuthScreen({ onAuth }: AuthScreenProps) {
   const [mode, setMode] = useState<Mode>("login");
@@ -107,18 +114,13 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
           </p>
 
           <div className="grid grid-cols-2 gap-4">
-            {[
-              { icon: "🎙️", label: "Crystal-clear voice" },
-              { icon: "📹", label: "HD video calls" },
-              { icon: "💬", label: "Real-time messaging" },
-              { icon: "👥", label: "Team servers" },
-            ].map(({ icon, label }) => (
+            {features.map(({ icon, label }) => (
               <div
                 key={label}
                 className="flex items-center gap-3 p-3 rounded-xl"
                 style={{ background: "rgba(212,165,116,0.07)", border: "1px solid rgba(212,165,116,0.12)" }}
               >
-                <span className="text-xl">{icon}</span>
+                <span className="text-[color:var(--color-accent)]">{icon}</span>
                 <span className="text-sm text-[color:var(--color-text-dim)]">{label}</span>
               </div>
             ))}

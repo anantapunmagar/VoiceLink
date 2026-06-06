@@ -348,7 +348,7 @@ function KeybindsTab() {
     { action: "New line in message", keys: ["Shift", "Enter"] },
     { action: "Cancel / close", keys: ["Esc"] },
     { action: "Edit last message", keys: ["↑"] },
-    { action: "Open emoji picker", keys: ["Ctrl", "."] },
+    { action: "React to message", keys: ["Ctrl", "."] },
   ];
 
   return (
