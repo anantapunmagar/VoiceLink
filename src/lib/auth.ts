@@ -35,14 +35,16 @@ export function signup(username: string, email: string, password: string): AuthR
     banner: pickBanner(),
     bio: "",
     createdAt: Date.now(),
+    lastSeen: Date.now(),
+    notifySounds: true,
+    notifyDesktop: false,
+    compactMode: false,
+    theme: "dark",
   };
   users.push(user);
   storage.setUsers(users);
   storage.setCurrentUserId(user.id);
-
-  // Ensure default server exists and add user to it
   ensureDefaultServer(user.id);
-
   return { ok: true, user };
 }
 
@@ -55,6 +57,7 @@ export function login(identifier: string, password: string): AuthResult {
   );
   if (!user) return { ok: false, error: "Invalid username or password." };
   user.status = "online";
+  user.lastSeen = Date.now();
   storage.setUsers(users);
   storage.setCurrentUserId(user.id);
   ensureDefaultServer(user.id);
@@ -68,6 +71,7 @@ export function logout(): void {
     const u = users.find((x) => x.id === id);
     if (u) {
       u.status = "offline";
+      u.lastSeen = Date.now();
       storage.setUsers(users);
     }
   }
@@ -80,7 +84,7 @@ export function getCurrentUser(): User | null {
   return storage.getUsers().find((u) => u.id === id) || null;
 }
 
-export function updateUser(patch: Partial<User>): User | null {
+export function updateUser(patch: Partial<Omit<User, "id" | "passwordHash" | "createdAt">>): User | null {
   const id = storage.getCurrentUserId();
   if (!id) return null;
   const users = storage.getUsers();
@@ -89,6 +93,20 @@ export function updateUser(patch: Partial<User>): User | null {
   users[idx] = { ...users[idx], ...patch };
   storage.setUsers(users);
   return users[idx];
+}
+
+export function changePassword(oldPw: string, newPw: string): { ok: boolean; error?: string } {
+  const id = storage.getCurrentUserId();
+  if (!id) return { ok: false, error: "Not logged in." };
+  const users = storage.getUsers();
+  const idx = users.findIndex((u) => u.id === id);
+  if (idx < 0) return { ok: false, error: "User not found." };
+  if (users[idx].passwordHash !== hashPassword(oldPw))
+    return { ok: false, error: "Current password is incorrect." };
+  if (newPw.length < 6) return { ok: false, error: "New password must be at least 6 characters." };
+  users[idx].passwordHash = hashPassword(newPw);
+  storage.setUsers(users);
+  return { ok: true };
 }
 
 function pickBanner(): string {
@@ -109,12 +127,14 @@ export function ensureDefaultServer(userId: string): void {
       ownerId: "system",
       members: [userId],
       channels: [
-        { id: "ch_general", name: "general", type: "text", serverId: "srv_general" },
-        { id: "ch_introductions", name: "introductions", type: "text", serverId: "srv_general" },
+        { id: "ch_general", name: "general", type: "text", serverId: "srv_general", topic: "Welcome to VoiceLink!" },
+        { id: "ch_introductions", name: "introductions", type: "text", serverId: "srv_general", topic: "Introduce yourself here." },
+        { id: "ch_announcements", name: "announcements", type: "text", serverId: "srv_general", topic: "Important updates" },
         { id: "ch_lounge", name: "Lounge", type: "voice", serverId: "srv_general" },
         { id: "ch_music", name: "Music Room", type: "voice", serverId: "srv_general" },
       ],
       createdAt: Date.now(),
+      description: "The default server for all VoiceLink users.",
     };
     servers.push(general);
     storage.setServers(servers);

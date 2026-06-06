@@ -8,6 +8,12 @@ export interface User {
   status: "online" | "idle" | "dnd" | "offline";
   bio?: string;
   createdAt: number;
+  lastSeen?: number;
+  customStatus?: string; // e.g. "Working on something cool"
+  theme?: "dark" | "darker" | "midnight";
+  notifySounds?: boolean;
+  notifyDesktop?: boolean;
+  compactMode?: boolean;
 }
 
 export interface Server {
@@ -18,6 +24,7 @@ export interface Server {
   members: string[]; // user IDs
   channels: Channel[];
   createdAt: number;
+  description?: string;
 }
 
 export interface Channel {
@@ -25,6 +32,9 @@ export interface Channel {
   name: string;
   type: "text" | "voice";
   serverId: string;
+  topic?: string;
+  slowMode?: number; // seconds
+  nsfw?: boolean;
 }
 
 export interface Message {
@@ -35,6 +45,11 @@ export interface Message {
   serverId: string;
   timestamp: number;
   type: "text" | "system";
+  edited?: boolean;
+  editedAt?: number;
+  reactions?: Record<string, string[]>; // emoji -> [userId, ...]
+  replyTo?: string; // message id
+  pinned?: boolean;
 }
 
 export interface VoiceState {
@@ -48,8 +63,37 @@ export interface VoiceState {
 }
 
 export interface ChatSignal {
-  type: "message" | "voice-join" | "voice-leave" | "voice-state-update" | "user-presence";
-  payload: any;
+  type:
+    | "message"
+    | "message-edit"
+    | "message-delete"
+    | "reaction"
+    | "voice-join"
+    | "voice-leave"
+    | "voice-state-update"
+    | "user-presence"
+    | "typing";
+  payload: unknown;
   senderId: string;
   timestamp: number;
+}
+
+export interface Notification {
+  id: string;
+  type: "mention" | "message" | "voice" | "system";
+  title: string;
+  body: string;
+  channelId?: string;
+  serverId?: string;
+  timestamp: number;
+  read: boolean;
+}
+
+export interface DirectMessage {
+  id: string;
+  content: string;
+  authorId: string;
+  recipientId: string;
+  timestamp: number;
+  read: boolean;
 }
