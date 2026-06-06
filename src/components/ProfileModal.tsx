@@ -6,6 +6,7 @@ import { Button, Input, Textarea } from "./ui/Primitives";
 import { updateUser } from "../lib/auth";
 import { Avatar, colorForName, initials } from "./ui/Avatar";
 import { cn } from "../utils/cn";
+import { toast } from "sonner";
 
 interface ProfileModalProps { open: boolean; onClose: () => void; user: User; onUpdate: (user: User) => void; }
 
@@ -43,7 +44,14 @@ export function ProfileModal({ open, onClose, user, onUpdate }: ProfileModalProp
     if (u.length < 3) { setError("Username must be at least 3 characters."); return; }
     if (u.length > 24) { setError("Username must be under 24 characters."); return; }
     const updated = updateUser({ username: u, bio, banner, avatar, status, customStatus });
-    if (updated) { setSaved(true); setTimeout(() => setSaved(false), 2000); onUpdate(updated); }
+    if (updated) {
+      setSaved(true);
+      toast.success("Profile updated successfully");
+      setTimeout(() => setSaved(false), 2000);
+      onUpdate(updated);
+    } else {
+      toast.error("Failed to update profile");
+    }
   }
 
   const preview = username.trim() || user.username;

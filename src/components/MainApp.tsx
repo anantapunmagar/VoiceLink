@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import type { User, Server, CallState } from "../lib/types";
 import { storage } from "../lib/storage";
 import { joinByInviteCode } from "../lib/auth";
@@ -12,7 +12,7 @@ import { UserPanel } from "./UserPanel";
 import { ProfileModal } from "./ProfileModal";
 import { SettingsModal } from "./SettingsModal";
 import { chatBus } from "../lib/chat";
-import { Hash, Volume2, MessageSquare, Menu, X, Sparkles } from "lucide-react";
+import { Hash, Volume2, MessageSquare, Menu, Sparkles } from "lucide-react";
 import { cn } from "../utils/cn";
 
 interface MainAppProps { user: User; onLogout: () => void; onUserUpdate: (user: User) => void; }
