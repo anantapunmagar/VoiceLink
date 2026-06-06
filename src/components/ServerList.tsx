@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Plus, Home, Trash2 } from "lucide-react";
+import { Plus, MessageSquare } from "lucide-react";
 import type { Server } from "../lib/types";
-import { generateId } from "../lib/storage";
+import { generateId, generateInviteCode } from "../lib/storage";
+import { storage } from "../lib/storage";
 import { cn } from "../utils/cn";
-import { Tooltip } from "./ui/Primitives";
+import { colorForName } from "./ui/Avatar";
 
 interface ServerListProps {
   servers: Server[];
@@ -11,142 +12,144 @@ interface ServerListProps {
   onSelect: (id: string) => void;
   onServersChange: (servers: Server[]) => void;
   currentUserId: string;
+  dmUnread: number;
+  showDMs: boolean;
+  onDMsClick: () => void;
 }
 
-export function ServerList({
-  servers,
-  selectedId,
-  onSelect,
-  onServersChange,
-  currentUserId,
-}: ServerListProps) {
+export function ServerList({ servers, selectedId, onSelect, onServersChange, currentUserId, dmUnread, showDMs, onDMsClick }: ServerListProps) {
   const [showCreate, setShowCreate] = useState(false);
+  const [showJoin, setShowJoin] = useState(false);
   const [newName, setNewName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [joinError, setJoinError] = useState("");
 
   function handleCreate() {
     const name = newName.trim();
     if (!name) return;
+    const id = generateId();
     const server: Server = {
-      id: generateId(),
-      name,
-      ownerId: currentUserId,
-      members: [currentUserId],
+      id, name, ownerId: currentUserId, members: [currentUserId],
       channels: [
-        { id: generateId(), name: "general", type: "text", serverId: "" },
-        { id: generateId(), name: "off-topic", type: "text", serverId: "" },
-        { id: generateId(), name: "Lounge", type: "voice", serverId: "" },
+        { id: generateId(), name: "general", type: "text", serverId: id, topic: "General conversation" },
+        { id: generateId(), name: "off-topic", type: "text", serverId: id },
+        { id: generateId(), name: "General Voice", type: "voice", serverId: id },
       ],
       createdAt: Date.now(),
+      inviteCode: generateInviteCode(),
     };
-    server.channels.forEach((c) => (c.serverId = server.id));
     const updated = [...servers, server];
     onServersChange(updated);
-    setNewName("");
-    setShowCreate(false);
+    setNewName(""); setShowCreate(false);
     onSelect(server.id);
   }
 
-  function handleDelete(serverId: string) {
-    const server = servers.find((s) => s.id === serverId);
-    if (!server || server.ownerId !== currentUserId) return;
-    if (!confirm(`Delete server "${server.name}"? This cannot be undone.`)) return;
-    const updated = servers.filter((s) => s.id !== serverId);
+  function handleJoin() {
+    setJoinError("");
+    const code = inviteCode.trim().toUpperCase();
+    if (!code) return;
+    const allServers = storage.getServers();
+    const server = allServers.find((s) => s.inviteCode === code);
+    if (!server) { setJoinError("Invalid invite code."); return; }
+    if (!server.members.includes(currentUserId)) { server.members.push(currentUserId); storage.setServers(allServers); }
+    const updated = storage.getServers();
     onServersChange(updated);
-    if (selectedId === serverId && updated.length > 0) {
-      onSelect(updated[0].id);
-    }
+    onSelect(server.id);
+    setInviteCode(""); setShowJoin(false);
   }
 
   return (
-    <div className="flex flex-col items-center gap-2 py-3 w-[72px] flex-shrink-0 overflow-y-auto">
-      {/* Home */}
-      <Tooltip label="Home" side="right">
-        <button
-          onClick={() => onSelect(servers[0]?.id || "")}
-          className={cn(
-            "h-12 w-12 rounded-2xl flex items-center justify-center transition-all duration-200",
-            "bg-[color:var(--color-bg-3)] hover:bg-[color:var(--color-accent)] hover:rounded-xl",
-            "focus-ring",
-            selectedId === servers[0]?.id && "bg-[color:var(--color-accent)] rounded-xl",
-          )}
-        >
-          <Home
-            size={20}
-            className={cn(
-              selectedId === servers[0]?.id
-                ? "text-[color:var(--color-bg-0)]"
-                : "text-[color:var(--color-text-dim)]",
-            )}
-          />
-        </button>
-      </Tooltip>
-
-      {/* Divider */}
+    <div className="flex flex-col items-center gap-2 py-3 w-[68px] flex-shrink-0 overflow-y-auto overflow-x-hidden bg-[color:var(--color-bg-1)]">
+      {/* DMs button */}
+      <ServerBtn
+        label="Direct Messages"
+        active={showDMs}
+        onClick={onDMsClick}
+        badge={dmUnread}
+        icon={<MessageSquare size={20} />}
+        color="var(--color-accent)"
+      />
       <div className="w-8 h-px bg-[color:var(--color-border)]" />
 
-      {/* Server icons */}
-      {servers.map((server) => (
-        <ServerIcon
-          key={server.id}
-          server={server}
-          selected={selectedId === server.id}
-          onClick={() => onSelect(server.id)}
-          canDelete={server.ownerId === currentUserId}
-          onDelete={() => handleDelete(server.id)}
+      {/* Servers */}
+      {servers.map((s) => (
+        <ServerBtn
+          key={s.id}
+          label={s.name}
+          active={selectedId === s.id && !showDMs}
+          onClick={() => onSelect(s.id)}
+          initials={s.name.charAt(0).toUpperCase()}
+          color={colorForName(s.name)}
         />
       ))}
 
-      {/* Divider */}
       {servers.length > 0 && <div className="w-8 h-px bg-[color:var(--color-border)]" />}
 
       {/* Add server */}
-      <Tooltip label="Create Server" side="right">
+      <div className="relative">
         <button
-          onClick={() => setShowCreate(!showCreate)}
-          className="h-12 w-12 rounded-2xl flex items-center justify-center bg-[color:var(--color-bg-3)] hover:bg-[color:var(--color-success)] hover:rounded-xl transition-all duration-200 focus-ring group"
-        >
-          <Plus
-            size={20}
-            className="text-[color:var(--color-success)] group-hover:text-[color:var(--color-bg-0)] transition-colors"
-          />
+          onClick={() => { setShowCreate(!showCreate); setShowJoin(false); }}
+          className="h-12 w-12 rounded-2xl flex items-center justify-center transition-all duration-200 bg-[color:var(--color-bg-3)] hover:bg-[color:var(--color-success)] hover:rounded-xl group focus-ring"
+          title="Add a server">
+          <Plus size={20} className="text-[color:var(--color-success)] group-hover:text-white transition-colors" />
         </button>
-      </Tooltip>
+        {showCreate && (
+          <Popup title="Create a server" onClose={() => setShowCreate(false)}>
+            <input value={newName} onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowCreate(false); }}
+              placeholder="Server name" autoFocus maxLength={32}
+              className="w-full h-9 px-3 text-sm bg-[color:var(--color-bg-2)] border border-[color:var(--color-border)] rounded-lg focus:outline-none focus:border-[color:var(--color-accent)] text-[color:var(--color-text)] placeholder:text-[color:var(--color-text-mute)] mb-3" />
+            <div className="flex gap-2">
+              <button onClick={() => setShowCreate(false)} className="flex-1 h-8 text-xs text-[color:var(--color-text-dim)] rounded-lg border border-[color:var(--color-border)] hover:border-[color:var(--color-border-strong)] transition-colors">Cancel</button>
+              <button onClick={handleCreate} disabled={!newName.trim()} className="flex-1 h-8 text-xs font-semibold bg-[color:var(--color-accent)] text-white rounded-lg disabled:opacity-40 hover:bg-[color:var(--color-accent-hover)] transition-colors">Create</button>
+            </div>
+            <button onClick={() => { setShowCreate(false); setShowJoin(true); }} className="w-full text-center text-xs text-[color:var(--color-accent)] hover:underline mt-2">Join with invite code instead</button>
+          </Popup>
+        )}
+        {showJoin && (
+          <Popup title="Join a server" onClose={() => { setShowJoin(false); setJoinError(""); }}>
+            <input value={inviteCode} onChange={(e) => setInviteCode(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleJoin(); if (e.key === "Escape") { setShowJoin(false); setJoinError(""); } }}
+              placeholder="Invite code (e.g. AB12CDE)" autoFocus maxLength={16}
+              className="w-full h-9 px-3 text-sm bg-[color:var(--color-bg-2)] border border-[color:var(--color-border)] rounded-lg focus:outline-none focus:border-[color:var(--color-accent)] text-[color:var(--color-text)] placeholder:text-[color:var(--color-text-mute)] mb-2 font-mono uppercase" />
+            {joinError && <p className="text-xs text-[color:var(--color-danger)] mb-2">{joinError}</p>}
+            <div className="flex gap-2">
+              <button onClick={() => { setShowJoin(false); setJoinError(""); }} className="flex-1 h-8 text-xs text-[color:var(--color-text-dim)] rounded-lg border border-[color:var(--color-border)] hover:border-[color:var(--color-border-strong)] transition-colors">Cancel</button>
+              <button onClick={handleJoin} disabled={!inviteCode.trim()} className="flex-1 h-8 text-xs font-semibold bg-[color:var(--color-accent)] text-white rounded-lg disabled:opacity-40 hover:bg-[color:var(--color-accent-hover)] transition-colors">Join</button>
+            </div>
+          </Popup>
+        )}
+      </div>
+    </div>
+  );
+}
 
-      {/* Create server popup */}
-      {showCreate && (
-        <div
-          className="fixed left-20 z-50 w-64 rounded-xl border border-[color:var(--color-border)] p-4 slide-up shadow-2xl"
-          style={{ background: "var(--color-bg-3)", top: "50%" }}
-        >
-          <h3 className="text-sm font-semibold text-[color:var(--color-text)] mb-3">
-            Create a server
-          </h3>
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCreate();
-              if (e.key === "Escape") setShowCreate(false);
-            }}
-            placeholder="Server name"
-            className="w-full h-9 px-3 text-sm bg-[color:var(--color-bg-0)] border border-[color:var(--color-border)] rounded-md focus:outline-none focus:border-[color:var(--color-accent)] mb-3 text-[color:var(--color-text)] placeholder:text-[color:var(--color-text-mute)]"
-            autoFocus
-            maxLength={32}
-          />
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowCreate(false)}
-              className="flex-1 h-8 text-xs text-[color:var(--color-text-dim)] hover:text-[color:var(--color-text)] transition-colors rounded-md border border-[color:var(--color-border)] hover:border-[color:var(--color-border-strong)]"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleCreate}
-              disabled={!newName.trim()}
-              className="flex-1 h-8 text-xs font-semibold bg-[color:var(--color-accent)] text-[color:var(--color-bg-0)] rounded-md disabled:opacity-40 hover:brightness-110 transition-all"
-            >
-              Create
-            </button>
+function ServerBtn({ label, active, onClick, initials, color, icon, badge }: {
+  label: string; active: boolean; onClick: () => void;
+  initials?: string; color?: string; icon?: React.ReactNode; badge?: number;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div className="relative" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <button
+        onClick={onClick}
+        className={cn("relative h-12 w-12 rounded-2xl flex items-center justify-center font-bold text-sm transition-all duration-200 focus-ring text-white",
+          active ? "rounded-xl" : "hover:rounded-xl")}
+        style={{ background: color ?? (active ? "var(--color-accent)" : "var(--color-bg-3)") }}
+        title={label}>
+        {icon ?? initials}
+        {active && <span className="absolute -left-3 top-1/2 -translate-y-1/2 h-5 w-1.5 bg-white rounded-full" />}
+        {active && <span className="absolute inset-0 rounded-2xl ring-2 ring-white/20" style={{ borderRadius: active ? "12px" : "16px" }} />}
+      </button>
+      {badge != null && badge > 0 && (
+        <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-0.5 rounded-full bg-[color:var(--color-danger)] text-white text-[9px] font-bold flex items-center justify-center">
+          {badge > 9 ? "9+" : badge}
+        </span>
+      )}
+      {hover && (
+        <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 pointer-events-none">
+          <div className="px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shadow-xl bg-[color:var(--color-bg-0)] text-[color:var(--color-text)] border border-[color:var(--color-border)]">
+            {label}
           </div>
         </div>
       )}
@@ -154,64 +157,11 @@ export function ServerList({
   );
 }
 
-interface ServerIconProps {
-  server: Server;
-  selected: boolean;
-  onClick: () => void;
-  canDelete: boolean;
-  onDelete: () => void;
-}
-
-function ServerIcon({ server, selected, onClick, canDelete, onDelete }: ServerIconProps) {
-  const [hover, setHover] = useState(false);
-  const initial = server.name.charAt(0).toUpperCase();
-  const color = `hsl(${(server.name.charCodeAt(0) * 37) % 360}, 45%, 45%)`;
-
+function Popup({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="relative group">
-      <button
-        onClick={onClick}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        className={cn(
-          "relative h-12 w-12 flex items-center justify-center font-semibold text-sm transition-all duration-200",
-          "rounded-2xl hover:rounded-xl focus-ring",
-          selected && "rounded-xl ring-2 ring-[color:var(--color-accent)] ring-offset-2 ring-offset-[color:var(--color-bg-0)]",
-        )}
-        style={{ background: color }}
-        title={server.name}
-      >
-        {server.icon ? (
-          <img src={server.icon} alt={server.name} className="h-full w-full object-cover rounded-inherit" />
-        ) : (
-          <span style={{ color: "#fff", textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>{initial}</span>
-        )}
-
-        {/* Selection indicator */}
-        {selected && (
-          <span className="absolute -left-3 top-1/2 -translate-y-1/2 h-5 w-1 bg-[color:var(--color-text)] rounded-full" />
-        )}
-      </button>
-
-      {/* Tooltip */}
-      {hover && (
-        <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 pointer-events-none">
-          <div className="px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shadow-xl bg-[color:var(--color-bg-4)] text-[color:var(--color-text)] border border-[color:var(--color-border)]">
-            {server.name}
-          </div>
-        </div>
-      )}
-
-      {/* Delete button (owner only) */}
-      {canDelete && hover && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-[color:var(--color-danger)] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:brightness-110"
-          title="Delete server"
-        >
-          <Trash2 size={10} className="text-white" />
-        </button>
-      )}
+    <div className="absolute left-full ml-3 top-0 z-50 w-64 rounded-xl border border-[color:var(--color-border)] p-4 shadow-2xl bg-[color:var(--color-bg-3)] animate-scale-in">
+      <h3 className="text-sm font-semibold text-[color:var(--color-text)] mb-3">{title}</h3>
+      {children}
     </div>
   );
 }
