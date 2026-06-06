@@ -1,7 +1,12 @@
 import { useState, useEffect } from "react";
+<<<<<<< HEAD
 import type { User, Server, CallState } from "../lib/types";
 import { storage } from "../lib/storage";
 import { joinByInviteCode } from "../lib/auth";
+=======
+import type { User, CallState } from "../lib/types";
+import { useAppStore } from "../lib/store";
+>>>>>>> ca46219e9fbcab83d24b211ef878cf1422213454
 import { ServerList } from "./ServerList";
 import { ChannelList } from "./ChannelList";
 import { ChatPanel } from "./ChatPanel";
@@ -11,9 +16,13 @@ import { DMPanel } from "./DMPanel";
 import { UserPanel } from "./UserPanel";
 import { ProfileModal } from "./ProfileModal";
 import { SettingsModal } from "./SettingsModal";
+<<<<<<< HEAD
 import { chatBus } from "../lib/chat";
+=======
+>>>>>>> ca46219e9fbcab83d24b211ef878cf1422213454
 import { Hash, Volume2, MessageSquare, Menu, Sparkles } from "lucide-react";
 import { cn } from "../utils/cn";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface MainAppProps { user: User; onLogout: () => void; onUserUpdate: (user: User) => void; }
 
