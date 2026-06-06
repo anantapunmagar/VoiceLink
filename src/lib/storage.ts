@@ -1,12 +1,13 @@
-import type { User, Server, Message, VoiceState, DirectMessage } from "./types";
+import type { User, Server, Message, VoiceState, DirectMessage, Notification } from './types';
 
 const KEYS = {
-  USERS: "vl_users",
-  CURRENT_USER: "vl_current_user",
-  SERVERS: "vl_servers",
-  MESSAGES: "vl_messages",
-  VOICE_STATES: "vl_voice_states",
-  DMS: "vl_dms",
+  USERS: 'vl_users',
+  CURRENT_USER: 'vl_current_user',
+  SERVERS: 'vl_servers',
+  MESSAGES: 'vl_messages',
+  VOICE_STATES: 'vl_voice_states',
+  DMS: 'vl_dms',
+  NOTIFICATIONS: 'vl_notifications',
 } as const;
 
 function read<T>(key: string, fallback: T): T {
@@ -23,7 +24,7 @@ function write<T>(key: string, value: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    console.warn("localStorage write failed for key:", key);
+    console.warn('localStorage write failed for key:', key);
   }
 }
 
@@ -45,6 +46,9 @@ export const storage = {
 
   getDMs: (): DirectMessage[] => read(KEYS.DMS, []),
   setDMs: (dms: DirectMessage[]) => write(KEYS.DMS, dms),
+
+  getNotifications: (): Notification[] => read(KEYS.NOTIFICATIONS, []),
+  setNotifications: (notifications: Notification[]) => write(KEYS.NOTIFICATIONS, notifications),
 
   exportAll: () => ({
     users: read(KEYS.USERS, []),
@@ -75,7 +79,7 @@ export function generateInviteCode(): string {
 export function storageUsageKB(): number {
   let total = 0;
   for (const key of Object.values(KEYS)) {
-    total += (localStorage.getItem(key) ?? "").length;
+    total += (localStorage.getItem(key) ?? '').length;
   }
   return Math.round(total / 102.4) / 10;
 }

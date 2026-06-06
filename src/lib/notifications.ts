@@ -1,8 +1,8 @@
-import type { Notification } from "./types";
-import { storage, generateId } from "./storage";
+import type { Notification } from './types';
+import { storage, generateId } from './storage';
 
 export const notifications = {
-  add(n: Omit<Notification, "id" | "timestamp" | "read">): Notification {
+  add(n: Omit<Notification, 'id' | 'timestamp' | 'read'>): Notification {
     const notif: Notification = {
       ...n,
       id: generateId(),
@@ -18,7 +18,7 @@ export const notifications = {
 
   markRead(id: string): void {
     const all = storage.getNotifications();
-    const n = all.find((x) => x.id === id);
+    const n = all.find((x: Notification) => x.id === id);
     if (n) {
       n.read = true;
       storage.setNotifications(all);
@@ -26,7 +26,7 @@ export const notifications = {
   },
 
   markAllRead(): void {
-    const all = storage.getNotifications().map((n) => ({ ...n, read: true }));
+    const all = storage.getNotifications().map((n: Notification) => ({ ...n, read: true }));
     storage.setNotifications(all);
   },
 
@@ -35,7 +35,7 @@ export const notifications = {
   },
 
   getUnreadCount(): number {
-    return storage.getNotifications().filter((n) => !n.read).length;
+    return storage.getNotifications().filter((n: Notification) => !n.read).length;
   },
 
   clear(): void {
@@ -43,15 +43,15 @@ export const notifications = {
   },
 
   async requestPermission(): Promise<boolean> {
-    if (!("Notification" in window)) return false;
-    if (Notification.permission === "granted") return true;
-    const result = await Notification.requestPermission();
-    return result === "granted";
+    if (!('Notification' in window)) return false;
+    if (window.Notification.permission === 'granted') return true;
+    const result = await window.Notification.requestPermission();
+    return result === 'granted';
   },
 
   async showDesktop(title: string, body: string): Promise<void> {
-    if (!("Notification" in window)) return;
-    if (Notification.permission !== "granted") return;
-    new Notification(title, { body, icon: "/favicon.svg" });
+    if (!('Notification' in window)) return;
+    if (window.Notification.permission !== 'granted') return;
+    new window.Notification(title, { body, icon: '/favicon.svg' });
   },
 };

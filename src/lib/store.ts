@@ -53,8 +53,8 @@ export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       // Initial state from storage
-      currentUser: storage.getCurrentUserId() 
-        ? storage.getUsers().find(u => u.id === storage.getCurrentUserId()) || null 
+      currentUser: storage.getCurrentUserId()
+        ? storage.getUsers().find((u) => u.id === storage.getCurrentUserId()) || null
         : null,
       servers: storage.getServers(),
       activeServerId: null,
@@ -128,7 +128,7 @@ export const useAppStore = create<AppState>()(
           inviteCode: generateInviteCode(),
         };
         // Fix channel serverId
-        newServer.channels.forEach(c => c.serverId = newServer.id);
+        newServer.channels.forEach((c) => (c.serverId = newServer.id));
 
         const servers = [...get().servers, newServer];
         set({ servers, activeServerId: newServer.id, activeChannelId: newServer.channels[0].id });
@@ -138,10 +138,10 @@ export const useAppStore = create<AppState>()(
 
       joinServer: (inviteCode, userId) => {
         const servers = get().servers;
-        const server = servers.find(s => s.inviteCode === inviteCode);
+        const server = servers.find((s) => s.inviteCode === inviteCode);
         if (!server || server.members.includes(userId)) return false;
 
-        const updated = servers.map(s =>
+        const updated = servers.map((s) =>
           s.id === server.id ? { ...s, members: [...s.members, userId] } : s
         );
         set({ servers: updated, activeServerId: server.id });
@@ -150,7 +150,7 @@ export const useAppStore = create<AppState>()(
       },
 
       createChannel: (serverId, name, type) => {
-        const servers = get().servers.map(server => {
+        const servers = get().servers.map((server) => {
           if (server.id === serverId) {
             const newChannel: Channel = {
               id: generateId(),
@@ -181,12 +181,12 @@ export const useAppStore = create<AppState>()(
       },
 
       toggleReaction: (messageId, emoji, userId) => {
-        const messages = get().messages.map(msg => {
+        const messages = get().messages.map((msg) => {
           if (msg.id === messageId) {
             const reactions = { ...(msg.reactions || {}) };
             const users = reactions[emoji] || [];
             if (users.includes(userId)) {
-              reactions[emoji] = users.filter(u => u !== userId);
+              reactions[emoji] = users.filter((u) => u !== userId);
               if (reactions[emoji].length === 0) delete reactions[emoji];
             } else {
               reactions[emoji] = [...users, userId];
@@ -204,7 +204,7 @@ export const useAppStore = create<AppState>()(
         if (!current) return;
 
         const updatedUser = { ...current, ...updates };
-        const users = storage.getUsers().map(u => u.id === current.id ? updatedUser : u);
+        const users = storage.getUsers().map((u) => (u.id === current.id ? updatedUser : u));
         storage.setUsers(users);
         set({ currentUser: updatedUser });
       },

@@ -5,7 +5,7 @@ export interface User {
   passwordHash: string;
   avatar?: string;
   banner?: string;
-  status: "online" | "idle" | "dnd" | "offline";
+  status: 'online' | 'idle' | 'dnd' | 'offline';
   bio?: string;
   createdAt: number;
   lastSeen?: number;
@@ -30,7 +30,7 @@ export interface Server {
 export interface Channel {
   id: string;
   name: string;
-  type: "text" | "voice";
+  type: 'text' | 'voice';
   serverId: string;
   topic?: string;
 }
@@ -42,7 +42,7 @@ export interface Message {
   channelId: string;
   serverId: string; // empty string for DMs
   timestamp: number;
-  type: "text" | "system";
+  type: 'text' | 'system';
   edited?: boolean;
   editedAt?: number;
   reactions?: Record<string, string[]>;
@@ -72,28 +72,37 @@ export interface VoiceState {
 
 export interface ChatSignal {
   type:
-    | "message"
-    | "message-edit"
-    | "message-delete"
-    | "reaction"
-    | "voice-join"
-    | "voice-leave"
-    | "voice-state-update"
-    | "user-presence"
-    | "typing"
-    | "dm"
-    | "dm-edit"
-    | "call-invite"
-    | "call-answer"
-    | "call-reject"
-    | "call-end";
+    | 'message'
+    | 'message-edit'
+    | 'message-delete'
+    | 'reaction'
+    | 'voice-join'
+    | 'voice-leave'
+    | 'voice-state-update'
+    | 'user-presence'
+    | 'typing'
+    | 'dm'
+    | 'dm-edit'
+    | 'call-invite'
+    | 'call-answer'
+    | 'call-reject'
+    | 'call-end';
   payload: unknown;
   senderId: string;
   timestamp: number;
 }
 
 export type CallState =
-  | { status: "idle" }
-  | { status: "calling"; peerId: string; peerName: string; callId: string }
-  | { status: "ringing"; callerId: string; callerName: string; callId: string }
-  | { status: "active"; peerId: string; peerName: string; callId: string; startedAt: number };
+  | { status: 'idle' }
+  | { status: 'calling'; peerId: string; peerName: string; callId: string }
+  | { status: 'ringing'; callerId: string; callerName: string; callId: string }
+  | { status: 'active'; peerId: string; peerName: string; callId: string; startedAt: number };
+
+export interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  read: boolean;
+  timestamp: number;
+}
