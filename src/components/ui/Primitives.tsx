@@ -58,7 +58,7 @@ export function Button({
       {loading ? (
         <>
           <Loader2 size={14} className="animate-spin" />
-          Please wait…
+          Please wait...
         </>
       ) : (
         children
