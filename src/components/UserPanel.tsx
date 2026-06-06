@@ -35,7 +35,7 @@ export function UserPanel({ user, onProfileClick, onSettingsClick, onLogout, onU
   const currentStatus = STATUS_OPTS.find((s) => s.value === user.status);
 
   return (
-    <div className="relative border-t border-[color:var(--color-border)] px-2 py-2 flex-shrink-0 bg-[color:var(--color-bg-2)]">
+    <div className="relative px-2 py-2 flex-shrink-0 bg-[color:var(--color-bg-1)]">
       {/* Status popup */}
       {showStatus && (
         <div className="absolute bottom-full left-2 right-2 mb-1.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-4)] shadow-2xl p-1.5 z-50 animate-slide-up">

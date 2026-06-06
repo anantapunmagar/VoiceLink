@@ -59,7 +59,7 @@ export function ServerList({ servers, selectedId, onSelect, onServersChange, cur
   }
 
   return (
-    <div className="flex flex-col items-center gap-2 py-3 w-[68px] flex-shrink-0 overflow-y-auto overflow-x-hidden bg-[color:var(--color-bg-1)]">
+    <div className="flex flex-col items-center gap-2 py-3 w-[68px] flex-shrink-0 overflow-y-auto overflow-x-hidden bg-[color:var(--color-bg-0)] h-full">
       {/* DMs button */}
       <ServerBtn
         label="Direct Messages"

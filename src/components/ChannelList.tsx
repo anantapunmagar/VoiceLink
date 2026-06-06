@@ -93,7 +93,7 @@ export function ChannelList({ server, selectedChannelId, onSelect, currentUser, 
   }
 
   return (
-    <div className="flex flex-col h-full bg-[color:var(--color-bg-2)]">
+    <div className="flex flex-col h-full bg-transparent">
       {/* Server header */}
       <button
         onClick={() => setShowInfo(!showInfo)}

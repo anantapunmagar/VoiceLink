@@ -57,7 +57,7 @@ export function DMList({ currentUser, selectedPeerId, onSelectPeer, onClose }: D
     : sortedPeers;
 
   return (
-    <div className="flex flex-col h-full bg-[color:var(--color-bg-2)]">
+    <div className="flex flex-col h-full bg-transparent">
       <div className="px-3 py-3 border-b border-[color:var(--color-border)] flex-shrink-0">
         <h2 className="text-sm font-semibold text-[color:var(--color-text)] mb-2">Direct Messages</h2>
         <div className="relative">

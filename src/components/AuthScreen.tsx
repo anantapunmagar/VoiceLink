@@ -48,34 +48,34 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
             style={{ background: "radial-gradient(circle at top right, var(--color-accent), transparent 60%)" }} />
         </div>
         <div className="flex items-center gap-3 z-10">
-          <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-[color:var(--color-accent)]">
-            <Link2 size={18} className="text-white" />
+          <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-[color:var(--color-accent)]">
+            <Link2 size={24} className="text-white" />
           </div>
-          <span className="font-bold text-xl text-[color:var(--color-text)]">VoiceLink</span>
+          <span className="font-bold text-3xl text-[color:var(--color-text)]">VoiceLink</span>
         </div>
-        <div className="z-10">
-          <h1 className="text-4xl font-bold text-[color:var(--color-text)] leading-tight mb-4">
+        <div className="z-10 mt-10">
+          <h1 className="text-5xl font-bold text-[color:var(--color-text)] leading-tight mb-6">
             Your place to<br />
             <span className="text-[color:var(--color-accent)]">talk and hang out.</span>
           </h1>
-          <p className="text-[color:var(--color-text-dim)] text-lg leading-relaxed mb-8 max-w-sm">
+          <p className="text-[color:var(--color-text-dim)] text-xl leading-relaxed mb-10 max-w-sm">
             Servers, channels, voice calls, video, and direct messages. Everything in one place.
           </p>
-          <div className="grid grid-cols-2 gap-3 max-w-sm">
+          <div className="grid grid-cols-2 gap-4 max-w-lg">
             {[
               ["Voice & Video", "Crystal-clear calls with WebRTC"],
               ["Text Channels", "Organised server channels"],
               ["Direct Messages", "Private one-on-one chats"],
               ["Server Invites", "Share a link and bring friends"],
             ].map(([title, desc]) => (
-              <div key={title} className="p-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-2)]">
-                <p className="text-sm font-semibold text-[color:var(--color-text)] mb-0.5">{title}</p>
-                <p className="text-xs text-[color:var(--color-text-mute)]">{desc}</p>
+              <div key={title} className="p-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-2)]">
+                <p className="text-base font-semibold text-[color:var(--color-text)] mb-1">{title}</p>
+                <p className="text-sm text-[color:var(--color-text-mute)]">{desc}</p>
               </div>
             ))}
           </div>
         </div>
-        <p className="text-xs text-[color:var(--color-text-mute)] z-10">VoiceLink &copy; 2026 &middot; MIT License</p>
+        <p className="text-sm text-[color:var(--color-text-mute)] z-10">VoiceLink &copy; 2026 &middot; MIT License</p>
       </div>
 
       {/* Auth form */}
@@ -83,23 +83,23 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="h-8 w-8 rounded-xl flex items-center justify-center bg-[color:var(--color-accent)]">
-              <Link2 size={16} className="text-white" />
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-[color:var(--color-accent)]">
+              <Link2 size={24} className="text-white" />
             </div>
-            <span className="font-bold text-lg text-[color:var(--color-text)]">VoiceLink</span>
+            <span className="font-bold text-2xl text-[color:var(--color-text)]">VoiceLink</span>
           </div>
 
-          <h2 className="text-2xl font-bold text-[color:var(--color-text)] mb-1">
+          <h2 className="text-3xl font-bold text-[color:var(--color-text)] mb-2">
             {mode === "login" ? "Welcome back" : "Create account"}
           </h2>
-          <p className="text-sm text-[color:var(--color-text-dim)] mb-6">
+          <p className="text-base text-[color:var(--color-text-dim)] mb-6">
             {mode === "login" ? "Sign in to continue to VoiceLink." : "Join VoiceLink in under a minute."}
           </p>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {mode === "signup" && (
               <Input label="Username" type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-                placeholder="yourname" autoComplete="username" required icon={<UserIcon size={14} />} />
+                placeholder="yourname" autoComplete="username" required icon={<UserIcon size={16} />} className="h-11 text-base" />
             )}
             <Input
               label={mode === "login" ? "Username or Email" : "Email"}
@@ -107,45 +107,45 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
               value={mode === "login" ? username : email}
               onChange={(e) => mode === "login" ? setUsername(e.target.value) : setEmail(e.target.value)}
               placeholder={mode === "login" ? "you or you@example.com" : "you@example.com"}
-              autoComplete={mode === "login" ? "username" : "email"} required icon={<Mail size={14} />}
+              autoComplete={mode === "login" ? "username" : "email"} required icon={<Mail size={16} />} className="h-11 text-base"
             />
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wider text-[color:var(--color-text-dim)]">Password</label>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold uppercase tracking-wider text-[color:var(--color-text-dim)]">Password</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-text-mute)]"><Lock size={14} /></span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-text-mute)]"><Lock size={16} /></span>
                 <input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
                   placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
                   autoComplete={mode === "signup" ? "new-password" : "current-password"} required
-                  className="w-full h-9 rounded-lg border text-sm bg-[color:var(--color-bg-2)] text-[color:var(--color-text)] border-[color:var(--color-border)] focus:border-[color:var(--color-accent)] placeholder:text-[color:var(--color-text-mute)] transition-colors focus:outline-none pl-9 pr-10" />
+                  className="w-full h-11 rounded-lg border text-base bg-[color:var(--color-bg-2)] text-[color:var(--color-text)] border-[color:var(--color-border)] focus:border-[color:var(--color-accent)] placeholder:text-[color:var(--color-text-mute)] transition-colors focus:outline-none pl-10 pr-10" />
                 <button type="button" onClick={() => setShowPw(!showPw)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--color-text-mute)] hover:text-[color:var(--color-text)] transition-colors">
-                  {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
             {mode === "signup" && (
               <Input label="Confirm Password" type={showPw ? "text" : "password"} value={confirm}
                 onChange={(e) => setConfirm(e.target.value)} placeholder="Re-enter password"
-                autoComplete="new-password" required icon={<Lock size={14} />} />
+                autoComplete="new-password" required icon={<Lock size={16} />} className="h-11 text-base" />
             )}
 
             {error && (
-              <div className="px-3 py-2.5 rounded-lg text-sm text-[color:var(--color-danger)] bg-[color:var(--color-danger-soft)] border border-[color:var(--color-danger)]/20">
+              <div className="px-3 py-2.5 rounded-lg text-base text-[color:var(--color-danger)] bg-[color:var(--color-danger-soft)] border border-[color:var(--color-danger)]/20">
                 {error}
               </div>
             )}
 
-            <Button type="submit" loading={loading} size="lg" className="w-full mt-1">
+            <Button type="submit" loading={loading} size="lg" className="w-full mt-2 text-base h-12">
               {mode === "login" ? "Sign in" : "Create account"}
-              {!loading && <ArrowRight size={15} />}
+              {!loading && <ArrowRight size={18} />}
             </Button>
             <Divider />
             <button type="button" onClick={() => switchMode(mode === "login" ? "signup" : "login")}
-              className="text-center text-sm text-[color:var(--color-text-dim)] hover:text-[color:var(--color-accent)] transition-colors py-1">
+              className="text-center text-base text-[color:var(--color-text-dim)] hover:text-[color:var(--color-accent)] transition-colors py-2">
               {mode === "login" ? "Don't have an account? Register" : "Already have an account? Sign in"}
             </button>
           </form>
-          <p className="mt-5 text-center text-xs text-[color:var(--color-text-mute)]">
+          <p className="mt-6 text-center text-sm text-[color:var(--color-text-mute)]">
             Accounts are stored locally in your browser.
           </p>
         </div>
