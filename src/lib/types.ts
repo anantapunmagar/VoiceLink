@@ -3,14 +3,13 @@ export interface User {
   username: string;
   email: string;
   passwordHash: string;
-  avatar?: string; // base64 or URL
-  banner?: string; // color hex
+  avatar?: string;
+  banner?: string;
   status: "online" | "idle" | "dnd" | "offline";
   bio?: string;
   createdAt: number;
   lastSeen?: number;
-  customStatus?: string; // e.g. "Working on something cool"
-  theme?: "dark" | "darker" | "midnight";
+  customStatus?: string;
   notifySounds?: boolean;
   notifyDesktop?: boolean;
   compactMode?: boolean;
@@ -21,10 +20,11 @@ export interface Server {
   name: string;
   icon?: string;
   ownerId: string;
-  members: string[]; // user IDs
+  members: string[];
   channels: Channel[];
   createdAt: number;
   description?: string;
+  inviteCode?: string; // unique short code for invites
 }
 
 export interface Channel {
@@ -33,8 +33,6 @@ export interface Channel {
   type: "text" | "voice";
   serverId: string;
   topic?: string;
-  slowMode?: number; // seconds
-  nsfw?: boolean;
 }
 
 export interface Message {
@@ -42,14 +40,24 @@ export interface Message {
   content: string;
   authorId: string;
   channelId: string;
-  serverId: string;
+  serverId: string; // empty string for DMs
   timestamp: number;
   type: "text" | "system";
   edited?: boolean;
   editedAt?: number;
-  reactions?: Record<string, string[]>; // emoji -> [userId, ...]
-  replyTo?: string; // message id
-  pinned?: boolean;
+  reactions?: Record<string, string[]>;
+  replyTo?: string;
+}
+
+export interface DirectMessage {
+  id: string;
+  content: string;
+  authorId: string;
+  recipientId: string;
+  timestamp: number;
+  read: boolean;
+  edited?: boolean;
+  replyTo?: string;
 }
 
 export interface VoiceState {
@@ -72,28 +80,20 @@ export interface ChatSignal {
     | "voice-leave"
     | "voice-state-update"
     | "user-presence"
-    | "typing";
+    | "typing"
+    | "dm"
+    | "dm-edit"
+    | "call-invite"
+    | "call-answer"
+    | "call-reject"
+    | "call-end";
   payload: unknown;
   senderId: string;
   timestamp: number;
 }
 
-export interface Notification {
-  id: string;
-  type: "mention" | "message" | "voice" | "system";
-  title: string;
-  body: string;
-  channelId?: string;
-  serverId?: string;
-  timestamp: number;
-  read: boolean;
-}
-
-export interface DirectMessage {
-  id: string;
-  content: string;
-  authorId: string;
-  recipientId: string;
-  timestamp: number;
-  read: boolean;
-}
+export type CallState =
+  | { status: "idle" }
+  | { status: "calling"; peerId: string; peerName: string; callId: string }
+  | { status: "ringing"; callerId: string; callerName: string; callId: string }
+  | { status: "active"; peerId: string; peerName: string; callId: string; startedAt: number };

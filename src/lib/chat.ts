@@ -1,43 +1,46 @@
-import type { Message, ChatSignal } from "./types";
+import type { Message, DirectMessage, ChatSignal } from "./types";
 import { storage, generateId } from "./storage";
 
-/**
- * Cross-tab messaging via BroadcastChannel + localStorage persistence.
- * Any browser tab on the same origin can see messages in real time.
- */
-export const chatBus = (() => {
+const bus = (() => {
   let channel: BroadcastChannel | null = null;
-  const listeners = new Set<(msg: Message) => void>();
+  const msgListeners = new Set<(msg: Message) => void>();
   const editListeners = new Set<(msg: Message) => void>();
   const deleteListeners = new Set<(msgId: string) => void>();
-  const reactionListeners = new Set<(payload: { msgId: string; emoji: string; userId: string; add: boolean }) => void>();
-  const typingListeners = new Set<(payload: { userId: string; channelId: string; typing: boolean }) => void>();
-  const presenceListeners = new Set<(signal: ChatSignal) => void>();
+  const reactionListeners = new Set<(p: { msgId: string; key: string; userId: string; add: boolean }) => void>();
+  const typingListeners = new Set<(p: { userId: string; channelId: string; typing: boolean }) => void>();
+  const dmListeners = new Set<(dm: DirectMessage) => void>();
+  const callListeners = new Set<(signal: ChatSignal) => void>();
 
-  function ensureChannel() {
-    if (channel) return;
-    channel = new BroadcastChannel("voicelink");
-    channel.onmessage = (ev) => {
-      const signal = ev.data as ChatSignal;
-      if (!signal) return;
-      if (signal.type === "message" && signal.payload) {
-        listeners.forEach((fn) => fn(signal.payload as Message));
-      } else if (signal.type === "message-edit" && signal.payload) {
-        editListeners.forEach((fn) => fn(signal.payload as Message));
-      } else if (signal.type === "message-delete") {
-        deleteListeners.forEach((fn) => fn(signal.payload as string));
-      } else if (signal.type === "reaction") {
-        reactionListeners.forEach((fn) => fn(signal.payload as { msgId: string; emoji: string; userId: string; add: boolean }));
-      } else if (signal.type === "typing") {
-        typingListeners.forEach((fn) => fn(signal.payload as { userId: string; channelId: string; typing: boolean }));
-      } else {
-        presenceListeners.forEach((fn) => fn(signal));
-      }
-    };
+  function getChannel() {
+    if (!channel) {
+      channel = new BroadcastChannel("voicelink_chat");
+      channel.onmessage = (ev) => dispatch(ev.data as ChatSignal);
+    }
+    return channel;
   }
 
+  function dispatch(signal: ChatSignal) {
+    if (!signal) return;
+    switch (signal.type) {
+      case "message":        msgListeners.forEach((f) => f(signal.payload as Message)); break;
+      case "message-edit":   editListeners.forEach((f) => f(signal.payload as Message)); break;
+      case "message-delete": deleteListeners.forEach((f) => f(signal.payload as string)); break;
+      case "reaction":       reactionListeners.forEach((f) => f(signal.payload as { msgId: string; key: string; userId: string; add: boolean })); break;
+      case "typing":         typingListeners.forEach((f) => f(signal.payload as { userId: string; channelId: string; typing: boolean })); break;
+      case "dm":             dmListeners.forEach((f) => f(signal.payload as DirectMessage)); break;
+      case "call-invite":
+      case "call-answer":
+      case "call-reject":
+      case "call-end":       callListeners.forEach((f) => f(signal)); break;
+    }
+  }
+
+  function post(signal: ChatSignal) {
+    getChannel().postMessage(signal);
+  }
+
+  // ---- Channel messages ----
   function sendMessage(content: string, authorId: string, channelId: string, serverId: string, replyTo?: string): Message {
-    ensureChannel();
     const message: Message = {
       id: generateId(),
       content,
@@ -52,142 +55,127 @@ export const chatBus = (() => {
     const all = storage.getMessages();
     all.push(message);
     storage.setMessages(all);
-    const signal: ChatSignal = {
-      type: "message",
-      payload: message,
-      senderId: authorId,
-      timestamp: Date.now(),
-    };
-    channel?.postMessage(signal);
-    listeners.forEach((fn) => fn(message));
+    const signal: ChatSignal = { type: "message", payload: message, senderId: authorId, timestamp: Date.now() };
+    post(signal);
+    msgListeners.forEach((f) => f(message));
     return message;
   }
 
-  function editMessage(messageId: string, newContent: string, authorId: string): Message | null {
-    ensureChannel();
+  function editMessage(id: string, content: string, authorId: string): Message | null {
     const all = storage.getMessages();
-    const idx = all.findIndex((m) => m.id === messageId && m.authorId === authorId);
+    const idx = all.findIndex((m) => m.id === id && m.authorId === authorId);
     if (idx < 0) return null;
-    all[idx] = { ...all[idx], content: newContent, edited: true, editedAt: Date.now() };
+    all[idx] = { ...all[idx], content, edited: true, editedAt: Date.now() };
     storage.setMessages(all);
-    const signal: ChatSignal = {
-      type: "message-edit",
-      payload: all[idx],
-      senderId: authorId,
-      timestamp: Date.now(),
-    };
-    channel?.postMessage(signal);
-    editListeners.forEach((fn) => fn(all[idx]));
+    const signal: ChatSignal = { type: "message-edit", payload: all[idx], senderId: authorId, timestamp: Date.now() };
+    post(signal);
+    editListeners.forEach((f) => f(all[idx]));
     return all[idx];
   }
 
-  function deleteMessage(messageId: string, authorId: string): boolean {
-    ensureChannel();
+  function deleteMessage(id: string, authorId: string): boolean {
     const all = storage.getMessages();
-    const idx = all.findIndex((m) => m.id === messageId && m.authorId === authorId);
+    const idx = all.findIndex((m) => m.id === id && m.authorId === authorId);
     if (idx < 0) return false;
     all.splice(idx, 1);
     storage.setMessages(all);
-    const signal: ChatSignal = {
-      type: "message-delete",
-      payload: messageId,
-      senderId: authorId,
-      timestamp: Date.now(),
-    };
-    channel?.postMessage(signal);
-    deleteListeners.forEach((fn) => fn(messageId));
+    const signal: ChatSignal = { type: "message-delete", payload: id, senderId: authorId, timestamp: Date.now() };
+    post(signal);
+    deleteListeners.forEach((f) => f(id));
     return true;
   }
 
-  function toggleReaction(messageId: string, emoji: string, userId: string): void {
-    ensureChannel();
+  function toggleReaction(msgId: string, key: string, userId: string) {
     const all = storage.getMessages();
-    const msg = all.find((m) => m.id === messageId);
+    const msg = all.find((m) => m.id === msgId);
     if (!msg) return;
     if (!msg.reactions) msg.reactions = {};
-    const users = msg.reactions[emoji] ?? [];
+    const users = msg.reactions[key] ?? [];
     const add = !users.includes(userId);
-    if (add) {
-      msg.reactions[emoji] = [...users, userId];
-    } else {
-      msg.reactions[emoji] = users.filter((u) => u !== userId);
-      if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
-    }
+    msg.reactions[key] = add ? [...users, userId] : users.filter((u) => u !== userId);
+    if (msg.reactions[key].length === 0) delete msg.reactions[key];
     storage.setMessages(all);
-    const payload = { msgId: messageId, emoji, userId, add };
-    const signal: ChatSignal = { type: "reaction", payload, senderId: userId, timestamp: Date.now() };
-    channel?.postMessage(signal);
-    reactionListeners.forEach((fn) => fn(payload));
+    const payload = { msgId, key, userId, add };
+    post({ type: "reaction", payload, senderId: userId, timestamp: Date.now() });
+    reactionListeners.forEach((f) => f(payload));
   }
 
-  function sendTyping(userId: string, channelId: string, typing: boolean): void {
-    ensureChannel();
-    const payload = { userId, channelId, typing };
-    const signal: ChatSignal = { type: "typing", payload, senderId: userId, timestamp: Date.now() };
-    channel?.postMessage(signal);
+  function sendTyping(userId: string, channelId: string, typing: boolean) {
+    post({ type: "typing", payload: { userId, channelId, typing }, senderId: userId, timestamp: Date.now() });
   }
 
   function getMessagesForChannel(channelId: string): Message[] {
-    return storage
-      .getMessages()
+    return storage.getMessages()
       .filter((m) => m.channelId === channelId)
       .sort((a, b) => a.timestamp - b.timestamp);
   }
 
-  function onMessage(fn: (msg: Message) => void): () => void {
-    ensureChannel();
-    listeners.add(fn);
-    return () => listeners.delete(fn);
+  // ---- DMs ----
+  function sendDM(content: string, authorId: string, recipientId: string, replyTo?: string): DirectMessage {
+    const dm: DirectMessage = {
+      id: generateId(),
+      content,
+      authorId,
+      recipientId,
+      timestamp: Date.now(),
+      read: false,
+      replyTo,
+    };
+    const all = storage.getDMs();
+    all.push(dm);
+    storage.setDMs(all);
+    post({ type: "dm", payload: dm, senderId: authorId, timestamp: Date.now() });
+    dmListeners.forEach((f) => f(dm));
+    return dm;
   }
 
-  function onEdit(fn: (msg: Message) => void): () => void {
-    ensureChannel();
-    editListeners.add(fn);
-    return () => editListeners.delete(fn);
+  function getDMThread(userA: string, userB: string): DirectMessage[] {
+    return storage.getDMs()
+      .filter((d) =>
+        (d.authorId === userA && d.recipientId === userB) ||
+        (d.authorId === userB && d.recipientId === userA),
+      )
+      .sort((a, b) => a.timestamp - b.timestamp);
   }
 
-  function onDelete(fn: (msgId: string) => void): () => void {
-    ensureChannel();
-    deleteListeners.add(fn);
-    return () => deleteListeners.delete(fn);
+  function markDMsRead(viewerId: string, senderId: string) {
+    const all = storage.getDMs();
+    let changed = false;
+    all.forEach((d) => {
+      if (d.authorId === senderId && d.recipientId === viewerId && !d.read) {
+        d.read = true;
+        changed = true;
+      }
+    });
+    if (changed) storage.setDMs(all);
   }
 
-  function onReaction(fn: (p: { msgId: string; emoji: string; userId: string; add: boolean }) => void): () => void {
-    ensureChannel();
-    reactionListeners.add(fn);
-    return () => reactionListeners.delete(fn);
+  function getUnreadDMCount(userId: string): number {
+    return storage.getDMs().filter((d) => d.recipientId === userId && !d.read).length;
   }
 
-  function onTyping(fn: (p: { userId: string; channelId: string; typing: boolean }) => void): () => void {
-    ensureChannel();
-    typingListeners.add(fn);
-    return () => typingListeners.delete(fn);
+  // ---- Call signals ----
+  function sendCallSignal(type: ChatSignal["type"], payload: unknown, senderId: string) {
+    const signal: ChatSignal = { type, payload, senderId, timestamp: Date.now() };
+    post(signal);
+    callListeners.forEach((f) => f(signal));
   }
 
-  function onPresence(fn: (signal: ChatSignal) => void): () => void {
-    ensureChannel();
-    presenceListeners.add(fn);
-    return () => presenceListeners.delete(fn);
-  }
-
-  function clearMessagesForChannel(channelId: string): void {
-    const all = storage.getMessages().filter((m) => m.channelId !== channelId);
-    storage.setMessages(all);
-  }
+  // ---- Subscriptions ----
+  function onMessage(fn: (msg: Message) => void) { getChannel(); msgListeners.add(fn); return () => { msgListeners.delete(fn); }; }
+  function onEdit(fn: (msg: Message) => void) { getChannel(); editListeners.add(fn); return () => { editListeners.delete(fn); }; }
+  function onDelete(fn: (id: string) => void) { getChannel(); deleteListeners.add(fn); return () => { deleteListeners.delete(fn); }; }
+  function onReaction(fn: (p: { msgId: string; key: string; userId: string; add: boolean }) => void) { getChannel(); reactionListeners.add(fn); return () => { reactionListeners.delete(fn); }; }
+  function onTyping(fn: (p: { userId: string; channelId: string; typing: boolean }) => void) { getChannel(); typingListeners.add(fn); return () => { typingListeners.delete(fn); }; }
+  function onDM(fn: (dm: DirectMessage) => void) { getChannel(); dmListeners.add(fn); return () => { dmListeners.delete(fn); }; }
+  function onCallSignal(fn: (s: ChatSignal) => void) { getChannel(); callListeners.add(fn); return () => { callListeners.delete(fn); }; }
 
   return {
-    sendMessage,
-    editMessage,
-    deleteMessage,
-    toggleReaction,
-    sendTyping,
-    getMessagesForChannel,
-    onMessage,
-    onEdit,
-    onDelete,
-    onReaction,
-    onTyping,
-    onPresence,
-    clearMessagesForChannel,
+    sendMessage, editMessage, deleteMessage, toggleReaction, sendTyping, getMessagesForChannel,
+    sendDM, getDMThread, markDMsRead, getUnreadDMCount,
+    sendCallSignal,
+    onMessage, onEdit, onDelete, onReaction, onTyping, onDM, onCallSignal,
   };
 })();
+
+export { bus as chatBus };

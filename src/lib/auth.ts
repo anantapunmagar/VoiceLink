@@ -1,5 +1,5 @@
 import type { User } from "./types";
-import { storage, hashPassword, generateId } from "./storage";
+import { storage, hashPassword, generateId, generateInviteCode } from "./storage";
 
 export interface AuthResult {
   ok: boolean;
@@ -10,7 +10,6 @@ export interface AuthResult {
 export function signup(username: string, email: string, password: string): AuthResult {
   const u = username.trim();
   const e = email.trim().toLowerCase();
-  const p = password;
 
   if (u.length < 3) return { ok: false, error: "Username must be at least 3 characters." };
   if (u.length > 24) return { ok: false, error: "Username must be under 24 characters." };
@@ -18,7 +17,7 @@ export function signup(username: string, email: string, password: string): AuthR
     return { ok: false, error: "Username may only contain letters, numbers, underscores, dots, and dashes." };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
     return { ok: false, error: "Please enter a valid email address." };
-  if (p.length < 6) return { ok: false, error: "Password must be at least 6 characters." };
+  if (password.length < 6) return { ok: false, error: "Password must be at least 6 characters." };
 
   const users = storage.getUsers();
   if (users.some((x) => x.username.toLowerCase() === u.toLowerCase()))
@@ -30,7 +29,7 @@ export function signup(username: string, email: string, password: string): AuthR
     id: generateId(),
     username: u,
     email: e,
-    passwordHash: hashPassword(p),
+    passwordHash: hashPassword(password),
     status: "online",
     banner: pickBanner(),
     bio: "",
@@ -39,12 +38,10 @@ export function signup(username: string, email: string, password: string): AuthR
     notifySounds: true,
     notifyDesktop: false,
     compactMode: false,
-    theme: "dark",
   };
   users.push(user);
   storage.setUsers(users);
   storage.setCurrentUserId(user.id);
-  ensureDefaultServer(user.id);
   return { ok: true, user };
 }
 
@@ -60,7 +57,6 @@ export function login(identifier: string, password: string): AuthResult {
   user.lastSeen = Date.now();
   storage.setUsers(users);
   storage.setCurrentUserId(user.id);
-  ensureDefaultServer(user.id);
   return { ok: true, user };
 }
 
@@ -109,37 +105,44 @@ export function changePassword(oldPw: string, newPw: string): { ok: boolean; err
   return { ok: true };
 }
 
+/** Join a server by invite code. Returns the server or null. */
+export function joinByInviteCode(code: string, userId: string): { ok: boolean; server?: import("./types").Server; error?: string } {
+  const servers = storage.getServers();
+  const server = servers.find((s) => s.inviteCode === code.toUpperCase().trim());
+  if (!server) return { ok: false, error: "Invalid invite code. Check the code and try again." };
+  if (!server.members.includes(userId)) {
+    server.members.push(userId);
+    storage.setServers(servers);
+  }
+  return { ok: true, server };
+}
+
 function pickBanner(): string {
   const palette = [
-    "#3a2a1a", "#2a2f3a", "#2d3a2a", "#3a2a35",
-    "#3a332a", "#26333a", "#332a3a", "#3a2a2a",
+    "#1e2a3a", "#1e2d2a", "#2a1e2d", "#2d1e1e",
+    "#1e1e2d", "#2a2d1e", "#1a2030", "#20301a",
   ];
   return palette[Math.floor(Math.random() * palette.length)];
 }
 
-export function ensureDefaultServer(userId: string): void {
+export function createServer(name: string, ownerId: string, description?: string): import("./types").Server {
+  const id = generateId();
+  const server: import("./types").Server = {
+    id,
+    name: name.trim(),
+    ownerId,
+    members: [ownerId],
+    channels: [
+      { id: generateId(), name: "general", type: "text", serverId: id, topic: "General conversation" },
+      { id: generateId(), name: "off-topic", type: "text", serverId: id },
+      { id: generateId(), name: "General Voice", type: "voice", serverId: id },
+    ],
+    createdAt: Date.now(),
+    description,
+    inviteCode: generateInviteCode(),
+  };
   const servers = storage.getServers();
-  let general = servers.find((s) => s.id === "srv_general");
-  if (!general) {
-    general = {
-      id: "srv_general",
-      name: "Welcome Hall",
-      ownerId: "system",
-      members: [userId],
-      channels: [
-        { id: "ch_general", name: "general", type: "text", serverId: "srv_general", topic: "Welcome to VoiceLink!" },
-        { id: "ch_introductions", name: "introductions", type: "text", serverId: "srv_general", topic: "Introduce yourself here." },
-        { id: "ch_announcements", name: "announcements", type: "text", serverId: "srv_general", topic: "Important updates" },
-        { id: "ch_lounge", name: "Lounge", type: "voice", serverId: "srv_general" },
-        { id: "ch_music", name: "Music Room", type: "voice", serverId: "srv_general" },
-      ],
-      createdAt: Date.now(),
-      description: "The default server for all VoiceLink users.",
-    };
-    servers.push(general);
-    storage.setServers(servers);
-  } else if (!general.members.includes(userId)) {
-    general.members.push(userId);
-    storage.setServers(servers);
-  }
+  servers.push(server);
+  storage.setServers(servers);
+  return server;
 }

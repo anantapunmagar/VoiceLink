@@ -1,287 +1,309 @@
 import { storage, generateId } from "./storage";
 
 /**
- * Voice/video rooms using BroadcastChannel for signaling
- * and RTCPeerConnection for media. Works between browser tabs
- * on the same origin without a signaling server.
+ * Full WebRTC engine.
+ * - Server voice/video channels: BroadcastChannel signaling (same-origin multi-tab)
+ * - Private 1-on-1 calls (DM calls): also BroadcastChannel signaling + RTCPeerConnection
+ *   with renegotiation for video toggle and screen-share.
  */
 
-const SIGNAL_CHANNEL = "voicelink_signaling";
+const SIGNAL_CH = "voicelink_rtc";
 
-type PeerEntry = {
-  pc: RTCPeerConnection;
-  peerTabId: string;
-  remoteStream: MediaStream | null;
-  audioEl?: HTMLAudioElement;
-};
-
-type RoomState = {
-  channelId: string;
-  userId: string;
-  localStream: MediaStream | null;
-  peers: Map<string, PeerEntry>;
-  onPeersChanged: () => void;
-};
-
-let currentRoom: RoomState | null = null;
-let localTabId: string | null = null;
-let signalChannel: BroadcastChannel | null = null;
-
-const rtcConfig: RTCConfiguration = {
+const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
     { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
   ],
 };
 
-export interface VoiceRoomEvents {
+// ---- Types ----
+
+type PeerEntry = {
+  pc: RTCPeerConnection;
+  peerId: string; // tabId or userId for DM calls
+  remoteStream: MediaStream;
+  audioEl?: HTMLAudioElement;
+  pendingCandidates: RTCIceCandidate[];
+  hasRemoteDesc: boolean;
+};
+
+type RoomState = {
+  roomId: string;       // channelId or callId
+  userId: string;
+  localStream: MediaStream;
+  peers: Map<string, PeerEntry>;
+  onPeersChanged: () => void;
+  isDMCall: boolean;
+};
+
+// ---- Module state ----
+
+let room: RoomState | null = null;
+let localTabId: string | null = null;
+let sigCh: BroadcastChannel | null = null;
+
+// ---- Exports ----
+
+export interface VoiceEvents {
   onJoined?: () => void;
   onLeft?: () => void;
   onPeersChanged?: () => void;
-  onRemoteStream?: (peerId: string, stream: MediaStream) => void;
-  onError?: (err: Error) => void;
-}
-
-function getSignalChannel(): BroadcastChannel {
-  if (!signalChannel) {
-    signalChannel = new BroadcastChannel(SIGNAL_CHANNEL);
-    signalChannel.onmessage = (ev) => handleSignal(ev.data);
-  }
-  return signalChannel;
+  onError?: (e: Error) => void;
 }
 
 export async function joinVoiceRoom(
   channelId: string,
   userId: string,
-  opts: { video: boolean; events: VoiceRoomEvents },
+  opts: { video?: boolean; events?: VoiceEvents },
 ): Promise<void> {
-  if (currentRoom && currentRoom.channelId === channelId) return;
-  if (currentRoom) await leaveVoiceRoom();
+  if (room?.roomId === channelId) return;
+  if (room) await leaveRoom();
 
   localTabId = generateId();
+  const stream = await acquireStream({ audio: true, video: !!opts.video }, opts.events?.onError);
 
-  let stream: MediaStream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-      video: opts.video ? { width: 640, height: 360, frameRate: 24 } : false,
-    });
-  } catch (e) {
-    opts.events.onError?.(e instanceof Error ? e : new Error(String(e)));
-    throw e;
-  }
-
-  currentRoom = {
-    channelId,
+  room = {
+    roomId: channelId,
     userId,
     localStream: stream,
     peers: new Map(),
-    onPeersChanged: () => opts.events.onPeersChanged?.(),
+    onPeersChanged: () => opts.events?.onPeersChanged?.(),
+    isDMCall: false,
   };
 
-  // Persist voice state
   const states = storage.getVoiceStates().filter((s) => s.userId !== userId);
-  states.push({
-    userId,
-    channelId,
-    serverId: "",
-    muted: false,
-    deafened: false,
-    video: opts.video,
-    screenShare: false,
-  });
+  states.push({ userId, channelId, serverId: "", muted: false, deafened: false, video: !!opts.video, screenShare: false });
   storage.setVoiceStates(states);
 
-  // Set up signaling
-  getSignalChannel();
-
-  broadcast({ kind: "hello", fromTab: localTabId, userId, channelId });
-
-  opts.events.onJoined?.();
+  getSigCh();
+  broadcast({ kind: "hello", fromTab: localTabId, userId, roomId: channelId });
+  opts.events?.onJoined?.();
 }
 
-export async function leaveVoiceRoom(): Promise<void> {
-  if (!currentRoom || !localTabId) return;
-  const channel = currentRoom.channelId;
-  const userId = currentRoom.userId;
+/** Start a direct 1-on-1 call. callId should be shared with peer. */
+export async function startDMCall(
+  callId: string,
+  userId: string,
+  opts: { video?: boolean; events?: VoiceEvents },
+): Promise<void> {
+  if (room?.roomId === callId) return;
+  if (room) await leaveRoom();
 
-  currentRoom.localStream?.getTracks().forEach((t) => t.stop());
+  localTabId = generateId();
+  const stream = await acquireStream({ audio: true, video: !!opts.video }, opts.events?.onError);
 
-  currentRoom.peers.forEach((p) => {
-    p.pc.close();
-    p.audioEl?.remove();
-  });
-  currentRoom.peers.clear();
+  room = {
+    roomId: callId,
+    userId,
+    localStream: stream,
+    peers: new Map(),
+    onPeersChanged: () => opts.events?.onPeersChanged?.(),
+    isDMCall: true,
+  };
 
-  const states = storage.getVoiceStates().filter((s) => !(s.channelId === channel && s.userId === userId));
-  storage.setVoiceStates(states);
+  getSigCh();
+  broadcast({ kind: "hello", fromTab: localTabId, userId, roomId: callId });
+  opts.events?.onJoined?.();
+}
 
-  broadcast({ kind: "bye", fromTab: localTabId, channelId: channel });
+export async function leaveRoom(): Promise<void> {
+  if (!room || !localTabId) return;
+  const { roomId, userId, localStream, peers, isDMCall } = room;
 
-  currentRoom = null;
+  localStream.getTracks().forEach((t) => t.stop());
+  peers.forEach((p) => { p.pc.close(); p.audioEl?.remove(); });
+  peers.clear();
+
+  if (!isDMCall) {
+    const states = storage.getVoiceStates().filter((s) => !(s.channelId === roomId && s.userId === userId));
+    storage.setVoiceStates(states);
+  }
+
+  broadcast({ kind: "bye", fromTab: localTabId, roomId });
+  room = null;
   localTabId = null;
 }
 
-export function setLocalMuted(muted: boolean): void {
-  if (!currentRoom?.localStream) return;
-  currentRoom.localStream.getAudioTracks().forEach((t) => (t.enabled = !muted));
+export function setMuted(muted: boolean) {
+  room?.localStream.getAudioTracks().forEach((t) => (t.enabled = !muted));
 }
 
-export function setLocalDeafened(deafened: boolean): void {
-  if (!currentRoom) return;
-  currentRoom.peers.forEach((p) => {
-    if (p.audioEl) p.audioEl.muted = deafened;
-  });
+export function setDeafened(deafened: boolean) {
+  room?.peers.forEach((p) => { if (p.audioEl) p.audioEl.muted = deafened; });
 }
 
-export async function setLocalVideo(enabled: boolean): Promise<void> {
-  if (!currentRoom) return;
-  if (enabled && !currentRoom.localStream!.getVideoTracks().length) {
+export async function setVideo(enabled: boolean): Promise<void> {
+  if (!room) return;
+  if (enabled && !room.localStream.getVideoTracks().length) {
     try {
-      const vs = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 360 } });
+      const vs = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 360, frameRate: 24 } });
       vs.getVideoTracks().forEach((track) => {
-        currentRoom!.localStream!.addTrack(track);
-        currentRoom!.peers.forEach((p) => {
-          const sender = p.pc.getSenders().find((s) => s.track && s.track.kind === "video");
-          if (sender) sender.replaceTrack(track);
-          else p.pc.addTrack(track, currentRoom!.localStream!);
+        room!.localStream.addTrack(track);
+        room!.peers.forEach((p) => {
+          const sender = p.pc.getSenders().find((s) => s.track?.kind === "video");
+          if (sender) sender.replaceTrack(track).catch(() => {});
+          else p.pc.addTrack(track, room!.localStream);
         });
       });
     } catch (e) {
       console.error("Could not enable video", e);
-      return;
     }
   } else if (!enabled) {
-    currentRoom.localStream!.getVideoTracks().forEach((t) => {
-      currentRoom!.localStream!.removeTrack(t);
+    room.localStream.getVideoTracks().forEach((t) => {
+      room!.localStream.removeTrack(t);
       t.stop();
-      currentRoom!.peers.forEach((p) => {
+      room!.peers.forEach((p) => {
         const sender = p.pc.getSenders().find((s) => s.track?.kind === "video");
         if (sender) p.pc.removeTrack(sender);
       });
     });
   } else {
-    currentRoom.localStream!.getVideoTracks().forEach((t) => (t.enabled = true));
+    room.localStream.getVideoTracks().forEach((t) => (t.enabled = true));
   }
-  currentRoom.onPeersChanged();
+  room.onPeersChanged();
 }
 
-export async function startScreenShare(): Promise<boolean> {
-  if (!currentRoom) return false;
+export async function shareScreen(): Promise<boolean> {
+  if (!room) return false;
   try {
-    const screenStream = await (navigator.mediaDevices as MediaDevices & {
-      getDisplayMedia: (opts?: object) => Promise<MediaStream>;
-    }).getDisplayMedia({ video: true, audio: false });
-    const track = screenStream.getVideoTracks()[0];
+    const s = await (navigator.mediaDevices as MediaDevices & {
+      getDisplayMedia(o?: object): Promise<MediaStream>;
+    }).getDisplayMedia({ video: true, audio: true });
+    const track = s.getVideoTracks()[0];
     if (!track) return false;
-    currentRoom.peers.forEach((p) => {
-      const sender = p.pc.getSenders().find((s) => s.track?.kind === "video");
-      if (sender) sender.replaceTrack(track);
-      else p.pc.addTrack(track, currentRoom!.localStream!);
+    room.peers.forEach((p) => {
+      const sender = p.pc.getSenders().find((se) => se.track?.kind === "video");
+      if (sender) sender.replaceTrack(track).catch(() => {});
+      else p.pc.addTrack(track, room!.localStream);
     });
-    track.onended = () => {
-      currentRoom?.onPeersChanged();
-    };
+    track.onended = () => room?.onPeersChanged();
     return true;
   } catch {
     return false;
   }
 }
 
-export function getLocalStream(): MediaStream | null {
-  return currentRoom?.localStream ?? null;
-}
+export const getLocalStream = () => room?.localStream ?? null;
+export const getCurrentRoomId = () => room?.roomId ?? null;
+export const getPeerCount = () => room?.peers.size ?? 0;
 
 export function getRemoteStreams(): Array<{ peerId: string; stream: MediaStream }> {
-  if (!currentRoom) return [];
+  if (!room) return [];
   const out: Array<{ peerId: string; stream: MediaStream }> = [];
-  currentRoom.peers.forEach((p, id) => {
-    if (p.remoteStream && p.remoteStream.getTracks().length > 0) {
-      out.push({ peerId: id, stream: p.remoteStream });
-    }
+  room.peers.forEach((p, id) => {
+    if (p.remoteStream.getTracks().length > 0) out.push({ peerId: id, stream: p.remoteStream });
   });
   return out;
 }
 
-export function getCurrentChannelId(): string | null {
-  return currentRoom?.channelId ?? null;
+// ---- Internals ----
+
+async function acquireStream(
+  constraints: { audio: boolean; video: boolean },
+  onError?: (e: Error) => void,
+): Promise<MediaStream> {
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: constraints.video ? { width: 640, height: 360, frameRate: 24 } : false,
+    });
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    onError?.(err);
+    throw err;
+  }
 }
 
-export function getPeerCount(): number {
-  return currentRoom?.peers.size ?? 0;
+function getSigCh(): BroadcastChannel {
+  if (!sigCh) {
+    sigCh = new BroadcastChannel(SIGNAL_CH);
+    sigCh.onmessage = (ev) => handleSignal(ev.data).catch(console.error);
+  }
+  return sigCh;
 }
 
-// ---------- Signaling ----------
-
-function broadcast(msg: object): void {
-  getSignalChannel().postMessage({ ...msg, _channelId: currentRoom?.channelId });
+function broadcast(msg: object) {
+  getSigCh().postMessage({ ...msg, _room: room?.roomId });
 }
 
-async function handleSignal(msg: Record<string, unknown>): Promise<void> {
-  if (!currentRoom || !localTabId) return;
-  if (msg.channelId && msg.channelId !== currentRoom.channelId) return;
+async function handleSignal(msg: Record<string, unknown>) {
+  if (!room || !localTabId) return;
+  if (msg.roomId && msg.roomId !== room.roomId) return;
 
-  if (msg.kind === "hello") {
-    if (msg.fromTab === localTabId) return;
-    if (!currentRoom.peers.has(msg.fromTab as string)) {
-      await createPeer(msg.fromTab as string, true);
+  switch (msg.kind) {
+    case "hello": {
+      if (msg.fromTab === localTabId) return;
+      if (!room.peers.has(msg.fromTab as string)) await createPeer(msg.fromTab as string, true);
+      break;
     }
-  } else if (msg.kind === "bye") {
-    if (msg.fromTab === localTabId) return;
-    removePeer(msg.fromTab as string);
-  } else if (msg.kind === "offer" && msg.toTab === localTabId) {
-    if (!currentRoom.peers.has(msg.fromTab as string)) {
-      await createPeer(msg.fromTab as string, false);
+    case "bye": {
+      if (msg.fromTab === localTabId) return;
+      removePeer(msg.fromTab as string);
+      break;
     }
-    const peer = currentRoom.peers.get(msg.fromTab as string);
-    if (peer) {
+    case "offer": {
+      if (msg.toTab !== localTabId) return;
+      if (!room.peers.has(msg.fromTab as string)) await createPeer(msg.fromTab as string, false);
+      const peer = room.peers.get(msg.fromTab as string);
+      if (!peer) return;
       await peer.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp as RTCSessionDescriptionInit));
+      peer.hasRemoteDesc = true;
+      for (const c of peer.pendingCandidates) await peer.pc.addIceCandidate(c).catch(() => {});
+      peer.pendingCandidates = [];
       const answer = await peer.pc.createAnswer();
       await peer.pc.setLocalDescription(answer);
-      broadcast({ kind: "answer", fromTab: localTabId, toTab: msg.fromTab, sdp: answer });
+      broadcast({ kind: "answer", fromTab: localTabId, toTab: msg.fromTab, sdp: answer, roomId: room.roomId });
+      break;
     }
-  } else if (msg.kind === "answer" && msg.toTab === localTabId) {
-    const peer = currentRoom.peers.get(msg.fromTab as string);
-    if (peer && peer.pc.signalingState !== "stable") {
-      await peer.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp as RTCSessionDescriptionInit));
-    }
-  } else if (msg.kind === "ice" && msg.toTab === localTabId) {
-    const peer = currentRoom.peers.get(msg.fromTab as string);
-    if (peer && msg.candidate) {
-      try {
-        await peer.pc.addIceCandidate(new RTCIceCandidate(msg.candidate as RTCIceCandidateInit));
-      } catch {
-        /* ignore */
+    case "answer": {
+      if (msg.toTab !== localTabId) return;
+      const peer = room.peers.get(msg.fromTab as string);
+      if (peer && peer.pc.signalingState !== "stable") {
+        await peer.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp as RTCSessionDescriptionInit));
+        peer.hasRemoteDesc = true;
+        for (const c of peer.pendingCandidates) await peer.pc.addIceCandidate(c).catch(() => {});
+        peer.pendingCandidates = [];
       }
+      break;
+    }
+    case "ice": {
+      if (msg.toTab !== localTabId) return;
+      const peer = room.peers.get(msg.fromTab as string);
+      if (!peer) return;
+      const candidate = new RTCIceCandidate(msg.candidate as RTCIceCandidateInit);
+      if (peer.hasRemoteDesc) {
+        await peer.pc.addIceCandidate(candidate).catch(() => {});
+      } else {
+        peer.pendingCandidates.push(candidate);
+      }
+      break;
     }
   }
 }
 
-async function createPeer(peerTabId: string, initiator: boolean): Promise<void> {
-  if (!currentRoom) return;
-  const pc = new RTCPeerConnection(rtcConfig);
-  const entry: PeerEntry = { pc, peerTabId, remoteStream: new MediaStream() };
-  currentRoom.peers.set(peerTabId, entry);
+async function createPeer(peerId: string, initiator: boolean) {
+  if (!room || !localTabId) return;
 
-  if (currentRoom.localStream) {
-    currentRoom.localStream.getTracks().forEach((track) => {
-      pc.addTrack(track, currentRoom!.localStream!);
-    });
-  }
+  const pc = new RTCPeerConnection(RTC_CONFIG);
+  const entry: PeerEntry = {
+    pc,
+    peerId,
+    remoteStream: new MediaStream(),
+    pendingCandidates: [],
+    hasRemoteDesc: false,
+  };
+  room.peers.set(peerId, entry);
 
-  pc.onicecandidate = (ev) => {
-    if (ev.candidate) {
-      broadcast({ kind: "ice", fromTab: localTabId, toTab: peerTabId, candidate: ev.candidate });
-    }
+  room.localStream.getTracks().forEach((t) => pc.addTrack(t, room!.localStream));
+
+  pc.onicecandidate = ({ candidate }) => {
+    if (candidate) broadcast({ kind: "ice", fromTab: localTabId!, toTab: peerId, candidate, roomId: room!.roomId });
   };
 
-  pc.ontrack = (ev) => {
-    const stream = ev.streams[0] || entry.remoteStream!;
+  pc.ontrack = ({ streams }) => {
+    const stream = streams[0] ?? entry.remoteStream;
     entry.remoteStream = stream;
     if (!entry.audioEl) {
       const audio = document.createElement("audio");
@@ -291,38 +313,38 @@ async function createPeer(peerTabId: string, initiator: boolean): Promise<void> 
       document.body.appendChild(audio);
       entry.audioEl = audio;
     }
-    if (entry.audioEl.srcObject !== stream) {
-      entry.audioEl.srcObject = stream;
-    }
-    currentRoom?.onPeersChanged();
+    if (entry.audioEl.srcObject !== stream) entry.audioEl.srcObject = stream;
+    room?.onPeersChanged();
   };
 
   pc.onconnectionstatechange = () => {
-    if (
-      pc.connectionState === "failed" ||
-      pc.connectionState === "closed" ||
-      pc.connectionState === "disconnected"
-    ) {
-      removePeer(peerTabId);
-    }
+    if (["failed", "closed", "disconnected"].includes(pc.connectionState)) removePeer(peerId);
   };
 
   if (initiator) {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    broadcast({ kind: "offer", fromTab: localTabId!, toTab: peerTabId, sdp: offer });
+    broadcast({ kind: "offer", fromTab: localTabId!, toTab: peerId, sdp: offer, roomId: room.roomId });
   }
 
-  currentRoom.onPeersChanged();
+  room.onPeersChanged();
 }
 
-function removePeer(peerTabId: string): void {
-  if (!currentRoom) return;
-  const peer = currentRoom.peers.get(peerTabId);
+function removePeer(peerId: string) {
+  if (!room) return;
+  const peer = room.peers.get(peerId);
   if (peer) {
     peer.pc.close();
     peer.audioEl?.remove();
-    currentRoom.peers.delete(peerTabId);
-    currentRoom.onPeersChanged();
+    room.peers.delete(peerId);
+    room.onPeersChanged();
   }
 }
+
+// Backwards-compat alias
+export const leaveVoiceRoom = leaveRoom;
+export const setLocalMuted = setMuted;
+export const setLocalDeafened = setDeafened;
+export const setLocalVideo = setVideo;
+export const startScreenShare = shareScreen;
+export const getCurrentChannelId = getCurrentRoomId;
