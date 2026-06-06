@@ -108,14 +108,14 @@ export function MainApp({ user, onLogout, onUserUpdate }: MainAppProps) {
   const hasContent = (view === "server" && selectedChannel) || (view === "dm" && selectedPeer);
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-[color:var(--color-bg-0)]">
+    <div className="flex h-[100dvh] overflow-hidden bg-[color:var(--color-bg-2)]">
       {/* ---- Server rail (always visible on desktop, overlay on mobile) ---- */}
       <div className={cn(
         "flex-shrink-0 z-30",
         "lg:flex lg:relative lg:translate-x-0",
         showSidebar ? "flex fixed inset-0 bg-black/50" : "hidden lg:flex",
       )} onClick={showSidebar ? () => setShowSidebar(false) : undefined}>
-        <div onClick={(e) => e.stopPropagation()}>
+        <div onClick={(e) => e.stopPropagation()} className="h-full">
           <ServerList
             servers={servers} selectedId={selectedServerId}
             onSelect={handleServerSelect} onServersChange={handleServersChange}
@@ -127,9 +127,9 @@ export function MainApp({ user, onLogout, onUserUpdate }: MainAppProps) {
 
       {/* ---- Channel/DM list (collapsible on mobile) ---- */}
       <div className={cn(
-        "flex-shrink-0 w-60 border-r border-[color:var(--color-border)] flex flex-col",
+        "flex-shrink-0 w-60 bg-[color:var(--color-bg-1)] flex flex-col h-full",
         "lg:flex",
-        showChannels ? "flex fixed left-[68px] top-0 bottom-0 z-20" : "hidden lg:flex",
+        showChannels ? "flex fixed left-[68px] top-0 bottom-0 z-20 shadow-xl" : "hidden lg:flex",
       )}>
         {view === "server" && selectedServer ? (
           <ChannelList
@@ -151,7 +151,7 @@ export function MainApp({ user, onLogout, onUserUpdate }: MainAppProps) {
       </div>
 
       {/* ---- Main content ---- */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-[color:var(--color-bg-1)] min-w-0">
+      <div className="flex-1 flex flex-col overflow-hidden bg-[color:var(--color-bg-2)] min-w-0">
         {/* Mobile top bar */}
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[color:var(--color-border)] bg-[color:var(--color-bg-2)] lg:hidden flex-shrink-0">
           <button onClick={() => setShowSidebar(true)} className="p-1.5 rounded-lg text-[color:var(--color-text-mute)] hover:bg-[color:var(--color-bg-4)] transition-colors">

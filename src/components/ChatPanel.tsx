@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Hash, Send, Reply, Pencil, Trash2, X, CheckCheck, ThumbsUp, Heart, Laugh, Frown, Zap, Star } from "lucide-react";
+import { Hash, Send, Reply, Pencil, Trash2, X, CheckCheck, ThumbsUp, Heart, Laugh, Frown, Zap, Star, Users } from "lucide-react";
 import type { Channel, Server, User, Message } from "../lib/types";
 import { chatBus } from "../lib/chat";
 import { Avatar } from "./ui/Avatar";
@@ -25,6 +25,7 @@ export function ChatPanel({ channel, server, currentUser, onBack }: ChatPanelPro
   const [editContent, setEditContent] = useState("");
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [showMembers, setShowMembers] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,15 +91,21 @@ export function ChatPanel({ channel, server, currentUser, onBack }: ChatPanelPro
           </button>
         )}
         <Hash size={18} className="text-[color:var(--color-text-mute)]" />
-        <div>
-          <h2 className="text-sm font-semibold text-[color:var(--color-text)]">{channel.name}</h2>
-          {channel.topic && <p className="text-xs text-[color:var(--color-text-mute)] truncate max-w-[200px] lg:max-w-xs">{channel.topic}</p>}
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-semibold text-[color:var(--color-text)] truncate">{channel.name}</h2>
+          {channel.topic && <p className="text-xs text-[color:var(--color-text-mute)] truncate">{channel.topic}</p>}
         </div>
+        <button onClick={() => setShowMembers(!showMembers)} className={cn("p-1.5 rounded-lg transition-colors hidden lg:block", showMembers ? "bg-[color:var(--color-bg-4)] text-[color:var(--color-text)]" : "text-[color:var(--color-text-mute)] hover:bg-[color:var(--color-bg-4)] hover:text-[color:var(--color-text)]")}>
+          <Users size={18} />
+        </button>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-0.5">
-        {messages.length === 0 && (
+      <div className="flex flex-1 overflow-hidden">
+        {/* Main Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-0.5">
+            {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="h-14 w-14 rounded-full flex items-center justify-center mb-3 bg-[color:var(--color-bg-4)]">
               <Hash size={24} className="text-[color:var(--color-text-mute)]" />
@@ -146,21 +153,54 @@ export function ChatPanel({ channel, server, currentUser, onBack }: ChatPanelPro
         </div>
       )}
 
-      {/* Input */}
-      <div className="px-4 pb-4 safe-bottom flex-shrink-0">
-        <div className="flex items-end gap-2 px-3 py-2.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-4)] focus-within:border-[color:var(--color-accent)] transition-colors">
-          <textarea ref={inputRef} rows={1} value={input}
-            onChange={(e) => { setInput(e.target.value); sendTypingSignal(); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
-            onKeyDown={onKey} placeholder={`Message #${channel.name}`}
-            className="flex-1 bg-transparent text-sm text-[color:var(--color-text)] placeholder:text-[color:var(--color-text-mute)] focus:outline-none resize-none overflow-y-auto" style={{ maxHeight: 120 }} />
-          <button onClick={send} disabled={!input.trim()}
-            className={cn("p-1.5 rounded-lg transition-all flex-shrink-0", input.trim() ? "bg-[color:var(--color-accent)] text-white hover:bg-[color:var(--color-accent-hover)]" : "text-[color:var(--color-text-mute)] cursor-not-allowed")}>
-            <Send size={15} />
-          </button>
+          {/* Input */}
+          <div className="px-4 pb-4 safe-bottom flex-shrink-0">
+            <div className="flex items-end gap-2 px-3 py-2.5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-4)] focus-within:border-[color:var(--color-accent)] transition-colors">
+              <textarea ref={inputRef} rows={1} value={input}
+                onChange={(e) => { setInput(e.target.value); sendTypingSignal(); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
+                onKeyDown={onKey} placeholder={`Message #${channel.name}`}
+                className="flex-1 bg-transparent text-sm text-[color:var(--color-text)] placeholder:text-[color:var(--color-text-mute)] focus:outline-none resize-none overflow-y-auto" style={{ maxHeight: 120 }} />
+              <button onClick={send} disabled={!input.trim()}
+                className={cn("p-1.5 rounded-lg transition-all flex-shrink-0", input.trim() ? "bg-[color:var(--color-accent)] text-white hover:bg-[color:var(--color-accent-hover)]" : "text-[color:var(--color-text-mute)] cursor-not-allowed")}>
+                <Send size={15} />
+              </button>
+            </div>
+            <p className="text-[10px] text-[color:var(--color-text-mute)] mt-1.5 ml-1 hidden lg:block">
+              Enter to send &middot; Shift+Enter for new line
+            </p>
+          </div>
         </div>
-        <p className="text-[10px] text-[color:var(--color-text-mute)] mt-1.5 ml-1 hidden lg:block">
-          Enter to send &middot; Shift+Enter for new line
-        </p>
+
+        {/* Right Sidebar Members */}
+        {showMembers && (
+          <div className="w-60 border-l border-[color:var(--color-border)] bg-[color:var(--color-bg-1)] flex-shrink-0 flex flex-col hidden lg:flex animate-slide-left">
+            <div className="px-4 py-3 border-b border-[color:var(--color-border)] flex-shrink-0">
+              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--color-text-mute)]">Members &mdash; {server.members.length}</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {server.members.map((id) => {
+                const u = allUsers.find(x => x.id === id);
+                if (!u) return null;
+                const statusColor = u.status === "online" ? "bg-[color:var(--color-success)]" :
+                                    u.status === "idle" ? "bg-[color:var(--color-warn)]" :
+                                    u.status === "dnd" ? "bg-[color:var(--color-danger)]" :
+                                    "bg-[color:var(--color-text-mute)]";
+                return (
+                  <div key={id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-[color:var(--color-bg-3)] transition-colors cursor-pointer mb-0.5 group">
+                    <div className="relative">
+                      <Avatar user={u} size="sm" />
+                      <div className={cn("absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-2 border-[color:var(--color-bg-1)] rounded-full group-hover:border-[color:var(--color-bg-3)] transition-colors", statusColor)} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[color:var(--color-text)] truncate">{u.username}</p>
+                      {u.customStatus && <p className="text-[10px] text-[color:var(--color-text-mute)] truncate">{u.customStatus}</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

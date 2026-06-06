@@ -57,9 +57,18 @@ export function DMList({ currentUser, selectedPeerId, onSelectPeer, onClose }: D
     : sortedPeers;
 
   return (
-    <div className="flex flex-col h-full bg-[color:var(--color-bg-2)]">
+    <div className="flex flex-col h-full bg-transparent">
       <div className="px-3 py-3 border-b border-[color:var(--color-border)] flex-shrink-0">
-        <h2 className="text-sm font-semibold text-[color:var(--color-text)] mb-2">Direct Messages</h2>
+        <h2 className="text-sm font-semibold text-[color:var(--color-text)] mb-3">Direct Messages</h2>
+        <button onClick={() => alert("Friend requests coming soon!")} className="w-full flex items-center justify-between px-2 py-2 mb-3 rounded-lg bg-[color:var(--color-bg-3)] hover:bg-[color:var(--color-bg-4)] text-[color:var(--color-text)] transition-colors group">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded-full flex items-center justify-center bg-[color:var(--color-accent-soft)] text-[color:var(--color-accent)]">
+              <Plus size={14} />
+            </div>
+            <span className="text-sm font-medium">Add Friend</span>
+          </div>
+          <span className="text-xs text-[color:var(--color-text-mute)] group-hover:text-[color:var(--color-text)] px-1">NEW</span>
+        </button>
         <div className="relative">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[color:var(--color-text-mute)]" />
           <input

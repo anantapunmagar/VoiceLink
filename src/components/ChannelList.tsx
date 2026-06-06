@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Hash, Volume2, ChevronDown, Plus, Trash2, Copy, Check, Link, Settings } from "lucide-react";
 import type { Server, Channel, User } from "../lib/types";
 import { cn } from "../utils/cn";
@@ -27,23 +27,22 @@ export function ChannelList({ server, selectedChannelId, onSelect, currentUser, 
   const textChannels = server.channels.filter((c) => c.type === "text");
   const voiceChannels = server.channels.filter((c) => c.type === "voice");
   const memberUsers = storage.getUsers().filter((u) => server.members.includes(u.id));
+  const inviteCode = server.inviteCode || "";
 
-  function getOrCreateInviteCode(): string {
-    if (server.inviteCode) return server.inviteCode;
-    const servers = storage.getServers();
-    const idx = servers.findIndex((s) => s.id === server.id);
-    if (idx >= 0) {
-      servers[idx].inviteCode = generateInviteCode();
-      storage.setServers(servers);
-      onServersChange(servers);
-      return servers[idx].inviteCode!;
+  useEffect(() => {
+    if (!server.inviteCode) {
+      const servers = storage.getServers();
+      const idx = servers.findIndex((s) => s.id === server.id);
+      if (idx >= 0) {
+        servers[idx].inviteCode = generateInviteCode();
+        storage.setServers(servers);
+        onServersChange(servers);
+      }
     }
-    return "";
-  }
+  }, [server.id, server.inviteCode, onServersChange]);
 
   function copyInviteLink() {
-    const code = getOrCreateInviteCode();
-    const url = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+    const url = `${window.location.origin}${window.location.pathname}?invite=${inviteCode}`;
     navigator.clipboard.writeText(url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 
@@ -93,7 +92,7 @@ export function ChannelList({ server, selectedChannelId, onSelect, currentUser, 
   }
 
   return (
-    <div className="flex flex-col h-full bg-[color:var(--color-bg-2)]">
+    <div className="flex flex-col h-full bg-transparent">
       {/* Server header */}
       <button
         onClick={() => setShowInfo(!showInfo)}
@@ -114,7 +113,7 @@ export function ChannelList({ server, selectedChannelId, onSelect, currentUser, 
             <div className="flex items-center gap-2">
               <div className="flex-1 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[color:var(--color-bg-0)] border border-[color:var(--color-border)] text-xs font-mono text-[color:var(--color-text-dim)] overflow-hidden">
                 <Link size={11} className="flex-shrink-0 text-[color:var(--color-text-mute)]" />
-                <span className="truncate">{getOrCreateInviteCode()}</span>
+                <span className="truncate">{inviteCode || "Generating..."}</span>
               </div>
               <button onClick={copyInviteLink}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[color:var(--color-accent)] text-white text-xs font-medium hover:bg-[color:var(--color-accent-hover)] transition-colors flex-shrink-0">

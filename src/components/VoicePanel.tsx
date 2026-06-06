@@ -2,18 +2,20 @@ import { useState, useEffect, useRef } from "react";
 import { Volume2, Mic, MicOff, Video, VideoOff, PhoneOff, Monitor, Users } from "lucide-react";
 import type { Channel, Server, User } from "../lib/types";
 import { joinVoiceRoom, leaveRoom, setMuted, setDeafened, setVideo, shareScreen, getLocalStream, getRemoteStreams, getPeerCount, getCurrentRoomId } from "../lib/voice";
+import { storage } from "../lib/storage";
 import { Avatar } from "./ui/Avatar";
 import { cn } from "../utils/cn";
 
 interface VoicePanelProps { channel: Channel; server: Server; currentUser: User; onBack?: () => void; }
 
-export function VoicePanel({ channel, currentUser, onBack }: VoicePanelProps) {
+export function VoicePanel({ channel, server, currentUser, onBack }: VoicePanelProps) {
   const [inVoice, setInVoice] = useState(false);
   const [muted, setMutedState] = useState(false);
   const [deafened, setDeafenedState] = useState(false);
   const [videoOn, setVideoOnState] = useState(false);
   const [sharing, setSharingState] = useState(false);
   const [peerCount, setPeerCount] = useState(0);
+  const [showMembers, setShowMembers] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [startWithVideo, setStartWithVideo] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -65,13 +67,19 @@ export function VoicePanel({ channel, currentUser, onBack }: VoicePanelProps) {
           </button>
         )}
         <Volume2 size={18} className="text-[color:var(--color-text-mute)]" />
-        <div className="flex-1">
-          <h2 className="text-sm font-semibold text-[color:var(--color-text)]">{channel.name}</h2>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-semibold text-[color:var(--color-text)] truncate">{channel.name}</h2>
           {inVoice && <p className="text-xs text-[color:var(--color-success)]">{peerCount + 1} connected</p>}
         </div>
+        <button onClick={() => setShowMembers(!showMembers)} className={cn("p-1.5 rounded-lg transition-colors hidden lg:block", showMembers ? "bg-[color:var(--color-bg-4)] text-[color:var(--color-text)]" : "text-[color:var(--color-text-mute)] hover:bg-[color:var(--color-bg-4)] hover:text-[color:var(--color-text)]")}>
+          <Users size={18} />
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex flex-1 overflow-hidden">
+        {/* Main Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 overflow-y-auto p-4">
         {!inVoice ? (
           <div className="flex flex-col items-center justify-center h-full text-center gap-5">
             <div className="h-16 w-16 rounded-full flex items-center justify-center bg-[color:var(--color-bg-4)]">
@@ -115,12 +123,46 @@ export function VoicePanel({ channel, currentUser, onBack }: VoicePanelProps) {
               ))}
             </div>
             {/* Controls */}
-            <div className="flex items-center justify-center gap-3 pb-2 flex-wrap">
+            <div className="flex items-center justify-center gap-3 pb-2 flex-wrap flex-shrink-0">
               <VoiceBtn icon={muted ? <MicOff size={18} /> : <Mic size={18} />} label={muted ? "Unmute" : "Mute"} onClick={toggleMute} active={muted} danger={muted} />
               <VoiceBtn icon={<Volume2 size={18} />} label={deafened ? "Undeafen" : "Deafen"} onClick={toggleDeafen} active={deafened} />
               <VoiceBtn icon={videoOn ? <VideoOff size={18} /> : <Video size={18} />} label={videoOn ? "Stop Video" : "Video"} onClick={toggleVideo} active={videoOn} />
               <VoiceBtn icon={<Monitor size={18} />} label={sharing ? "Stop Share" : "Share"} onClick={toggleShare} active={sharing} />
               <VoiceBtn icon={<PhoneOff size={18} />} label="Leave" onClick={leave} danger large />
+            </div>
+          </div>
+        )}
+          </div>
+        </div>
+
+        {/* Right Sidebar Members */}
+        {showMembers && (
+          <div className="w-60 border-l border-[color:var(--color-border)] bg-[color:var(--color-bg-1)] flex-shrink-0 flex flex-col hidden lg:flex animate-slide-left">
+            <div className="px-4 py-3 border-b border-[color:var(--color-border)] flex-shrink-0">
+              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--color-text-mute)]">Members &mdash; {server.members.length}</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {server.members.map((id) => {
+                const allUsers = storage.getUsers();
+                const u = allUsers.find(x => x.id === id);
+                if (!u) return null;
+                const statusColor = u.status === "online" ? "bg-[color:var(--color-success)]" :
+                                    u.status === "idle" ? "bg-[color:var(--color-warn)]" :
+                                    u.status === "dnd" ? "bg-[color:var(--color-danger)]" :
+                                    "bg-[color:var(--color-text-mute)]";
+                return (
+                  <div key={id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-[color:var(--color-bg-3)] transition-colors cursor-pointer mb-0.5 group">
+                    <div className="relative">
+                      <Avatar user={u} size="sm" />
+                      <div className={cn("absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-2 border-[color:var(--color-bg-1)] rounded-full group-hover:border-[color:var(--color-bg-3)] transition-colors", statusColor)} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[color:var(--color-text)] truncate">{u.username}</p>
+                      {u.customStatus && <p className="text-[10px] text-[color:var(--color-text-mute)] truncate">{u.customStatus}</p>}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
